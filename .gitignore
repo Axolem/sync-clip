@@ -1,0 +1,31 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Swift / Xcode
+apps/macos-shell/.build/
+apps/macos-shell/.swiftpm/
+**/DerivedData/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+.swiftpm/
+
+# Android / Gradle
+apps/android-shell/.gradle/
+apps/android-shell/.kotlin/
+apps/android-shell/**/build/
+apps/android-shell/local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS / editor
+.DS_Store
+*.swp
+*~
+.vscode/
+.cursor/

@@ -1,0 +1,15 @@
+[package]
+name = "relay"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Encrypted relay skeleton for Clip delivery between Shells in a Sync Group"
+publish = false
+
+[[bin]]
+name = "relay"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+clip-engine = { path = "../clip-engine" }

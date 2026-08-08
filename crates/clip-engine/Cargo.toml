@@ -1,0 +1,11 @@
+[package]
+name = "clip-engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared Clip Engine: Clip model, encryption, sync protocol, Armed/Paused rules"
+publish = false
+
+[lib]
+name = "clip_engine"
+crate-type = ["rlib", "staticlib"]
