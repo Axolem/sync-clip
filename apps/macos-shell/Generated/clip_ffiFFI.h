@@ -281,6 +281,11 @@ RustBuffer uniffi_clip_ffi_fn_method_session_poll_applied(void*_Nonnull ptr, Rus
 void uniffi_clip_ffi_fn_method_session_publish_text(void*_Nonnull ptr, RustBuffer text, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_PUBLISH_TEXT_AND_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_PUBLISH_TEXT_AND_IMAGE
+void uniffi_clip_ffi_fn_method_session_publish_text_and_image(void*_Nonnull ptr, RustBuffer text, RustBuffer image_bytes, RustBuffer image_mime, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_SET_ARMED
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_SET_ARMED
 void uniffi_clip_ffi_fn_method_session_set_armed(void*_Nonnull ptr, int8_t armed, RustCallStatus *_Nonnull out_status
@@ -312,6 +317,12 @@ RustBuffer uniffi_clip_ffi_fn_func_link_key_from_base32(RustBuffer encoded, Rust
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LINK_KEY_TO_BASE32
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LINK_KEY_TO_BASE32
 RustBuffer uniffi_clip_ffi_fn_func_link_key_to_base32(RustBuffer key, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_MAX_IMAGE_BYTES
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_MAX_IMAGE_BYTES
+uint64_t uniffi_clip_ffi_fn_func_max_image_bytes(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_CLIP_FFI_RUSTBUFFER_ALLOC
@@ -624,6 +635,12 @@ uint16_t uniffi_clip_ffi_checksum_func_link_key_to_base32(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_MAX_IMAGE_BYTES
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_MAX_IMAGE_BYTES
+uint16_t uniffi_clip_ffi_checksum_func_max_image_bytes(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_ARMED
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_ARMED
 uint16_t uniffi_clip_ffi_checksum_method_session_is_armed(void
@@ -639,6 +656,12 @@ uint16_t uniffi_clip_ffi_checksum_method_session_poll_applied(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_PUBLISH_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_PUBLISH_TEXT
 uint16_t uniffi_clip_ffi_checksum_method_session_publish_text(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_PUBLISH_TEXT_AND_IMAGE
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_PUBLISH_TEXT_AND_IMAGE
+uint16_t uniffi_clip_ffi_checksum_method_session_publish_text_and_image(void
     
 );
 #endif

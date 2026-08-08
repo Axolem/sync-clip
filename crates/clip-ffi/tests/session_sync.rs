@@ -65,6 +65,67 @@ fn two_sessions_exchange_plain_text_clip() {
 }
 
 #[test]
+fn two_sessions_exchange_in_cap_image_clip() {
+    let (relay, url) = start_test_relay();
+    let link_key = generate_link_key();
+    let a = Session::new(link_key.clone(), url.clone(), generate_ephemeral_id())
+        .expect("session A");
+    let b = Session::new(link_key, url, generate_ephemeral_id()).expect("session B");
+    thread::sleep(Duration::from_millis(80));
+
+    let png = b"\x89PNG\r\nffi-image".to_vec();
+    a.publish_text_and_image("ffi caption".into(), png.clone(), "image/png".into())
+        .expect("publish");
+    let applied = poll_until(&b, Duration::from_secs(3)).expect("B should apply");
+    assert_eq!(applied.text, "ffi caption");
+    assert_eq!(applied.image_mime.as_deref(), Some("image/png"));
+    assert_eq!(applied.image_bytes.as_ref(), Some(&png));
+
+    relay.shutdown();
+}
+
+#[test]
+fn session_over_cap_image_omits_image_keeps_text() {
+    let (relay, url) = start_test_relay();
+    let link_key = generate_link_key();
+    let a = Session::new(link_key.clone(), url.clone(), generate_ephemeral_id())
+        .expect("session A");
+    let b = Session::new(link_key, url, generate_ephemeral_id()).expect("session B");
+    thread::sleep(Duration::from_millis(80));
+
+    let oversized = vec![0u8; clip_engine::MAX_IMAGE_BYTES + 1];
+    a.publish_text_and_image("keep text".into(), oversized, "image/png".into())
+        .expect("publish");
+    let applied = poll_until(&b, Duration::from_secs(3)).expect("B applies text");
+    assert_eq!(applied.text, "keep text");
+    assert!(applied.image_bytes.is_none());
+    assert!(applied.image_mime.is_none());
+
+    relay.shutdown();
+}
+
+#[test]
+fn sessions_on_rotated_link_key_do_not_sync_with_old_key() {
+    let (relay, url) = start_test_relay();
+    let old_key = generate_link_key();
+    let new_key = generate_link_key();
+    let a = Session::new(new_key.clone(), url.clone(), generate_ephemeral_id()).expect("A");
+    let b = Session::new(new_key, url.clone(), generate_ephemeral_id()).expect("B");
+    let c = Session::new(old_key, url, generate_ephemeral_id()).expect("C old");
+    thread::sleep(Duration::from_millis(80));
+
+    a.publish_text("new group only".into()).expect("publish");
+    let applied = poll_until(&b, Duration::from_secs(3)).expect("B applies");
+    assert_eq!(applied.text, "new group only");
+    assert!(
+        poll_until(&c, Duration::from_millis(400)).is_none(),
+        "old Link Key Session must not receive new-group Clips"
+    );
+
+    relay.shutdown();
+}
+
+#[test]
 fn paused_session_neither_publishes_nor_applies_until_armed() {
     let (relay, url) = start_test_relay();
     let link_key = generate_link_key();

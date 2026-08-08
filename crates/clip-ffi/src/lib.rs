@@ -2,7 +2,7 @@
 
 uniffi::setup_scaffolding!();
 
-use clip_engine::{AppliedClip, Device, DeviceError, LinkKey};
+use clip_engine::{AppliedClip, Device, DeviceError, LinkKey, MAX_IMAGE_BYTES};
 use data_encoding::BASE32_NOPAD;
 use rand::RngCore;
 use std::sync::Mutex;
@@ -18,6 +18,8 @@ pub const DEFAULT_RELAY_WS_URL: &str = "ws://127.0.0.1:7120/v0/ws";
 pub struct AppliedClipFfi {
     pub created_at: i64,
     pub id_hex: String,
+    pub image_bytes: Option<Vec<u8>>,
+    pub image_mime: Option<String>,
     pub text: String,
 }
 
@@ -90,6 +92,12 @@ pub fn default_relay_ws_url() -> String {
     DEFAULT_RELAY_WS_URL.to_string()
 }
 
+/// Encoded image soft cap (~5 MiB) exposed for Shell capture policy.
+#[uniffi::export]
+pub fn max_image_bytes() -> u64 {
+    MAX_IMAGE_BYTES as u64
+}
+
 fn parse_link_key(bytes: &[u8]) -> Result<LinkKey, SessionError> {
     let arr: [u8; 32] = bytes
         .try_into()
@@ -111,9 +119,15 @@ fn now_millis() -> i64 {
 }
 
 fn applied_to_ffi(applied: AppliedClip) -> AppliedClipFfi {
+    let (image_bytes, image_mime) = match applied.image {
+        Some(img) => (Some(img.bytes), Some(img.mime)),
+        None => (None, None),
+    };
     AppliedClipFfi {
         created_at: applied.created_at,
         id_hex: hex::encode(applied.id),
+        image_bytes,
+        image_mime,
         text: applied.text,
     }
 }
@@ -160,6 +174,25 @@ impl Session {
         let mut device = self.device.lock().expect("session lock");
         self.runtime
             .block_on(device.publish_text(&text, now_millis()))
+            .map(|_| ())
+            .map_err(SessionError::from)
+    }
+
+    /// Publish text plus optional image. Oversized images are omitted by the Clip Engine;
+    /// text still syncs. Local Nickname is intentionally not a parameter (Shell-only).
+    pub fn publish_text_and_image(
+        &self,
+        text: String,
+        image_bytes: Vec<u8>,
+        image_mime: String,
+    ) -> Result<(), SessionError> {
+        let mut device = self.device.lock().expect("session lock");
+        self.runtime
+            .block_on(device.publish(
+                &text,
+                Some((image_bytes, image_mime)),
+                now_millis(),
+            ))
             .map(|_| ())
             .map_err(SessionError::from)
     }

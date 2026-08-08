@@ -1,7 +1,7 @@
 //! Device API: join Sync Group, Armed/Paused, publish/apply Clips.
 
 use crate::crypto::{channel_id_hex, derive_channel_id};
-use crate::envelope::{Envelope, LinkKey, SealedEnvelope, TextClip};
+use crate::envelope::{ClipImage, Envelope, LinkKey, SealedEnvelope, TextClip};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -14,11 +14,15 @@ use uuid::Uuid;
 /// Opaque Clip id (16 bytes).
 pub type ClipId = [u8; 16];
 
+/// Encoded image payload soft cap (~5 MiB). Oversized images are omitted; text still syncs.
+pub const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+
 /// A remote Clip that passed decrypt, Armed, echo, and LWW checks.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppliedClip {
     pub created_at: i64,
     pub id: ClipId,
+    pub image: Option<ClipImage>,
     pub text: String,
 }
 
@@ -120,8 +124,19 @@ impl Device {
         text: &str,
         created_at_ms: i64,
     ) -> Result<ClipId, DeviceError> {
+        self.publish(text, None, created_at_ms).await
+    }
+
+    /// Publish a Clip with optional image bytes+mime. Images over [`MAX_IMAGE_BYTES`]
+    /// are omitted; text still publishes.
+    pub async fn publish(
+        &mut self,
+        text: &str,
+        image: Option<(Vec<u8>, String)>,
+        created_at_ms: i64,
+    ) -> Result<ClipId, DeviceError> {
         let id = Uuid::new_v4().into_bytes();
-        self.publish_text_with_id(text, created_at_ms, id).await
+        self.publish_with_id(text, image, created_at_ms, id).await
     }
 
     /// Wait for the next remote Clip that was applied (after LWW / echo / Armed).
@@ -141,13 +156,25 @@ impl Device {
         created_at_ms: i64,
         id: ClipId,
     ) -> Result<ClipId, DeviceError> {
+        self.publish_with_id(text, None, created_at_ms, id).await
+    }
+
+    /// Publish with explicit id and optional image (tests / Shell echo simulation).
+    pub async fn publish_with_id(
+        &mut self,
+        text: &str,
+        image: Option<(Vec<u8>, String)>,
+        created_at_ms: i64,
+        id: ClipId,
+    ) -> Result<ClipId, DeviceError> {
         if !self.armed {
             return Err(DeviceError::Paused);
         }
+        let image = clamp_image(image);
         let clip = TextClip {
             created_at: created_at_ms,
             id,
-            image: None,
+            image,
             schema_version: 1,
             sender_ephemeral_id: self.sender_ephemeral_id,
             text: text.to_string(),
@@ -161,6 +188,14 @@ impl Device {
             .map_err(|_| DeviceError::Closed)?;
         reply_rx.await.map_err(|_| DeviceError::Closed)?
     }
+}
+
+fn clamp_image(image: Option<(Vec<u8>, String)>) -> Option<ClipImage> {
+    let (bytes, mime) = image?;
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return None;
+    }
+    Some(ClipImage { bytes, mime })
 }
 
 impl Drop for Device {
@@ -280,7 +315,9 @@ async fn handle_publish(
     // Echo suppression: do not re-broadcast last remotely applied Clip.
     if let Some(ref remote) = state.last_remote_applied {
         if remote.id == clip.id
-            || (remote.text == clip.text && remote.created_at == clip.created_at)
+            || (remote.text == clip.text
+                && remote.image == clip.image
+                && remote.created_at == clip.created_at)
         {
             return Ok(clip.id);
         }
@@ -348,6 +385,7 @@ fn handle_server_text(
             let applied = AppliedClip {
                 created_at: clip.created_at,
                 id: clip.id,
+                image: clip.image.clone(),
                 text: clip.text.clone(),
             };
             state.last_remote_applied = Some(clip.clone());

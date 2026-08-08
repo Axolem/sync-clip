@@ -46,7 +46,7 @@ pub enum EnvelopeError {
     Cbor(String),
     #[error("invalid Clip schema_version: {0}")]
     Schema(u8),
-    #[error("ciphertext exceeds 2 MiB soft cap")]
+    #[error("ciphertext exceeds 6 MiB soft cap")]
     TooLarge,
 }
 
@@ -76,7 +76,8 @@ impl Envelope {
             )
             .map_err(|_| EnvelopeError::Decrypt)?;
 
-        if ciphertext.len() > 2 * 1024 * 1024 {
+        // Soft cap raised to fit ~5 MiB encoded image plaintext + AEAD overhead.
+        if ciphertext.len() > 6 * 1024 * 1024 {
             return Err(EnvelopeError::TooLarge);
         }
 
@@ -236,5 +237,42 @@ mod tests {
         let sealed = Envelope::seal(&sample_link_key(), &sample_clip()).expect("seal");
         let other = LinkKey([0x22; 32]);
         assert!(Envelope::open(&other, &sealed).is_err());
+    }
+
+    #[test]
+    fn seal_open_roundtrips_image_part() {
+        let link_key = sample_link_key();
+        let mut clip = sample_clip();
+        clip.image = Some(ClipImage {
+            bytes: b"fake-png-bytes".to_vec(),
+            mime: "image/png".into(),
+        });
+        let sealed = Envelope::seal(&link_key, &clip).expect("seal");
+        let opened = Envelope::open(&link_key, &sealed).expect("open");
+        assert_eq!(opened, clip);
+    }
+
+    #[test]
+    fn clip_cbor_plaintext_never_contains_local_nickname_key() {
+        let clip = sample_clip();
+        let bytes = encode_clip_cbor(&clip).expect("encode");
+        let value: ciborium::value::Value =
+            ciborium::from_reader(bytes.as_slice()).expect("cbor map");
+        let ciborium::value::Value::Map(entries) = value else {
+            panic!("expected CBOR map");
+        };
+        let keys: Vec<String> = entries
+            .iter()
+            .filter_map(|(k, _)| match k {
+                ciborium::value::Value::Text(t) => Some(t.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            !keys.iter().any(|k| k == "nickname" || k == "local_nickname"),
+            "Clip plaintext must never carry Local Nickname; keys={keys:?}"
+        );
+        assert!(keys.contains(&"text".to_string()));
+        assert!(keys.contains(&"schema_version".to_string()));
     }
 }

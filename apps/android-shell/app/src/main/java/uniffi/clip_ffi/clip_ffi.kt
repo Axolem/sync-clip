@@ -734,6 +734,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -759,11 +763,15 @@ fun uniffi_clip_ffi_checksum_func_link_key_from_base32(
 ): Short
 fun uniffi_clip_ffi_checksum_func_link_key_to_base32(
 ): Short
+fun uniffi_clip_ffi_checksum_func_max_image_bytes(
+): Short
 fun uniffi_clip_ffi_checksum_method_session_is_armed(
 ): Short
 fun uniffi_clip_ffi_checksum_method_session_poll_applied(
 ): Short
 fun uniffi_clip_ffi_checksum_method_session_publish_text(
+): Short
+fun uniffi_clip_ffi_checksum_method_session_publish_text_and_image(
 ): Short
 fun uniffi_clip_ffi_checksum_method_session_set_armed(
 ): Short
@@ -830,6 +838,8 @@ fun uniffi_clip_ffi_fn_method_session_poll_applied(`ptr`: Pointer,uniffi_out_err
 ): RustBuffer.ByValue
 fun uniffi_clip_ffi_fn_method_session_publish_text(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_clip_ffi_fn_method_session_publish_text_and_image(`ptr`: Pointer,`text`: RustBuffer.ByValue,`imageBytes`: RustBuffer.ByValue,`imageMime`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 fun uniffi_clip_ffi_fn_method_session_set_armed(`ptr`: Pointer,`armed`: Byte,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_clip_ffi_fn_func_default_relay_ws_url(uniffi_out_err: UniffiRustCallStatus, 
@@ -842,6 +852,8 @@ fun uniffi_clip_ffi_fn_func_link_key_from_base32(`encoded`: RustBuffer.ByValue,u
 ): RustBuffer.ByValue
 fun uniffi_clip_ffi_fn_func_link_key_to_base32(`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+fun uniffi_clip_ffi_fn_func_max_image_bytes(uniffi_out_err: UniffiRustCallStatus, 
+): Long
 fun ffi_clip_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun ffi_clip_ffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -983,6 +995,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_clip_ffi_checksum_func_link_key_to_base32() != 22178.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_clip_ffi_checksum_func_max_image_bytes() != 56117.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_clip_ffi_checksum_method_session_is_armed() != 23434.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -990,6 +1005,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_clip_ffi_checksum_method_session_publish_text() != 18117.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_method_session_publish_text_and_image() != 64340.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_clip_ffi_checksum_method_session_set_armed() != 8551.toShort()) {
@@ -1139,6 +1157,29 @@ private class JavaLangRefCleanable(
     val cleanable: java.lang.ref.Cleaner.Cleanable
 ) : UniffiCleaner.Cleanable {
     override fun clean() = cleanable.clean()
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterULong: FfiConverter<ULong, Long> {
+    override fun lift(value: Long): ULong {
+        return value.toULong()
+    }
+
+    override fun read(buf: ByteBuffer): ULong {
+        return lift(buf.getLong())
+    }
+
+    override fun lower(value: ULong): Long {
+        return value.toLong()
+    }
+
+    override fun allocationSize(value: ULong) = 8UL
+
+    override fun write(value: ULong, buf: ByteBuffer) {
+        buf.putLong(value.toLong())
+    }
 }
 
 /**
@@ -1379,6 +1420,12 @@ public interface SessionInterface {
      */
     fun `publishText`(`text`: kotlin.String)
     
+    /**
+     * Publish text plus optional image. Oversized images are omitted by the Clip Engine;
+     * text still syncs. Local Nickname is intentionally not a parameter (Shell-only).
+     */
+    fun `publishTextAndImage`(`text`: kotlin.String, `imageBytes`: kotlin.ByteArray, `imageMime`: kotlin.String)
+    
     fun `setArmed`(`armed`: kotlin.Boolean)
     
     companion object
@@ -1521,6 +1568,22 @@ open class Session: Disposable, AutoCloseable, SessionInterface
     
     
 
+    
+    /**
+     * Publish text plus optional image. Oversized images are omitted by the Clip Engine;
+     * text still syncs. Local Nickname is intentionally not a parameter (Shell-only).
+     */
+    @Throws(SessionException::class)override fun `publishTextAndImage`(`text`: kotlin.String, `imageBytes`: kotlin.ByteArray, `imageMime`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(SessionException) { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_method_session_publish_text_and_image(
+        it, FfiConverterString.lower(`text`),FfiConverterByteArray.lower(`imageBytes`),FfiConverterString.lower(`imageMime`),_status)
+}
+    }
+    
+    
+
     override fun `setArmed`(`armed`: kotlin.Boolean)
         = 
     callWithPointer {
@@ -1576,6 +1639,8 @@ public object FfiConverterTypeSession: FfiConverter<Session, Pointer> {
 data class AppliedClipFfi (
     var `createdAt`: kotlin.Long, 
     var `idHex`: kotlin.String, 
+    var `imageBytes`: kotlin.ByteArray?, 
+    var `imageMime`: kotlin.String?, 
     var `text`: kotlin.String
 ) {
     
@@ -1590,6 +1655,8 @@ public object FfiConverterTypeAppliedClipFfi: FfiConverterRustBuffer<AppliedClip
         return AppliedClipFfi(
             FfiConverterLong.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterOptionalByteArray.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterString.read(buf),
         )
     }
@@ -1597,12 +1664,16 @@ public object FfiConverterTypeAppliedClipFfi: FfiConverterRustBuffer<AppliedClip
     override fun allocationSize(value: AppliedClipFfi) = (
             FfiConverterLong.allocationSize(value.`createdAt`) +
             FfiConverterString.allocationSize(value.`idHex`) +
+            FfiConverterOptionalByteArray.allocationSize(value.`imageBytes`) +
+            FfiConverterOptionalString.allocationSize(value.`imageMime`) +
             FfiConverterString.allocationSize(value.`text`)
     )
 
     override fun write(value: AppliedClipFfi, buf: ByteBuffer) {
             FfiConverterLong.write(value.`createdAt`, buf)
             FfiConverterString.write(value.`idHex`, buf)
+            FfiConverterOptionalByteArray.write(value.`imageBytes`, buf)
+            FfiConverterOptionalString.write(value.`imageMime`, buf)
             FfiConverterString.write(value.`text`, buf)
     }
 }
@@ -1774,6 +1845,70 @@ public object FfiConverterTypeSessionError : FfiConverterRustBuffer<SessionExcep
 /**
  * @suppress
  */
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+    override fun read(buf: ByteBuffer): kotlin.String? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterString.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.String?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterString.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterString.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalByteArray: FfiConverterRustBuffer<kotlin.ByteArray?> {
+    override fun read(buf: ByteBuffer): kotlin.ByteArray? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterByteArray.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.ByteArray?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterByteArray.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.ByteArray?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterByteArray.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalTypeAppliedClipFfi: FfiConverterRustBuffer<AppliedClipFfi?> {
     override fun read(buf: ByteBuffer): AppliedClipFfi? {
         if (buf.get().toInt() == 0) {
@@ -1855,6 +1990,18 @@ public object FfiConverterOptionalTypeAppliedClipFfi: FfiConverterRustBuffer<App
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_link_key_to_base32(
         FfiConverterByteArray.lower(`key`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Encoded image soft cap (~5 MiB) exposed for Shell capture policy.
+         */ fun `maxImageBytes`(): kotlin.ULong {
+            return FfiConverterULong.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_max_image_bytes(
+        _status)
 }
     )
     }

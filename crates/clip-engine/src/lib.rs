@@ -8,7 +8,7 @@ mod device;
 mod envelope;
 
 pub use crypto::{channel_id_hex, derive_aead_key, derive_channel_id};
-pub use device::{AppliedClip, ClipId, Device, DeviceError};
+pub use device::{AppliedClip, ClipId, Device, DeviceError, MAX_IMAGE_BYTES};
 pub use envelope::{ClipImage, Envelope, EnvelopeError, LinkKey, SealedEnvelope, TextClip};
 
 /// Semantic version of the Clip Engine library crate.

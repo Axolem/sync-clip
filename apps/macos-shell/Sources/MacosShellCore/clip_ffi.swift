@@ -400,6 +400,22 @@ fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     typealias FfiType = Int64
     typealias SwiftType = Int64
@@ -516,6 +532,12 @@ public protocol SessionProtocol: AnyObject, Sendable {
      */
     func publishText(text: String) throws 
     
+    /**
+     * Publish text plus optional image. Oversized images are omitted by the Clip Engine;
+     * text still syncs. Local Nickname is intentionally not a parameter (Shell-only).
+     */
+    func publishTextAndImage(text: String, imageBytes: Data, imageMime: String) throws 
+    
     func setArmed(armed: Bool) 
     
 }
@@ -614,6 +636,19 @@ open func publishText(text: String)throws   {try rustCallWithError(FfiConverterT
 }
 }
     
+    /**
+     * Publish text plus optional image. Oversized images are omitted by the Clip Engine;
+     * text still syncs. Local Nickname is intentionally not a parameter (Shell-only).
+     */
+open func publishTextAndImage(text: String, imageBytes: Data, imageMime: String)throws   {try rustCallWithError(FfiConverterTypeSessionError_lift) {
+    uniffi_clip_ffi_fn_method_session_publish_text_and_image(self.uniffiClonePointer(),
+        FfiConverterString.lower(text),
+        FfiConverterData.lower(imageBytes),
+        FfiConverterString.lower(imageMime),$0
+    )
+}
+}
+    
 open func setArmed(armed: Bool)  {try! rustCall() {
     uniffi_clip_ffi_fn_method_session_set_armed(self.uniffiClonePointer(),
         FfiConverterBool.lower(armed),$0
@@ -683,13 +718,17 @@ public func FfiConverterTypeSession_lower(_ value: Session) -> UnsafeMutableRawP
 public struct AppliedClipFfi {
     public var createdAt: Int64
     public var idHex: String
+    public var imageBytes: Data?
+    public var imageMime: String?
     public var text: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(createdAt: Int64, idHex: String, text: String) {
+    public init(createdAt: Int64, idHex: String, imageBytes: Data?, imageMime: String?, text: String) {
         self.createdAt = createdAt
         self.idHex = idHex
+        self.imageBytes = imageBytes
+        self.imageMime = imageMime
         self.text = text
     }
 }
@@ -707,6 +746,12 @@ extension AppliedClipFfi: Equatable, Hashable {
         if lhs.idHex != rhs.idHex {
             return false
         }
+        if lhs.imageBytes != rhs.imageBytes {
+            return false
+        }
+        if lhs.imageMime != rhs.imageMime {
+            return false
+        }
         if lhs.text != rhs.text {
             return false
         }
@@ -716,6 +761,8 @@ extension AppliedClipFfi: Equatable, Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(createdAt)
         hasher.combine(idHex)
+        hasher.combine(imageBytes)
+        hasher.combine(imageMime)
         hasher.combine(text)
     }
 }
@@ -731,6 +778,8 @@ public struct FfiConverterTypeAppliedClipFfi: FfiConverterRustBuffer {
             try AppliedClipFfi(
                 createdAt: FfiConverterInt64.read(from: &buf), 
                 idHex: FfiConverterString.read(from: &buf), 
+                imageBytes: FfiConverterOptionData.read(from: &buf), 
+                imageMime: FfiConverterOptionString.read(from: &buf), 
                 text: FfiConverterString.read(from: &buf)
         )
     }
@@ -738,6 +787,8 @@ public struct FfiConverterTypeAppliedClipFfi: FfiConverterRustBuffer {
     public static func write(_ value: AppliedClipFfi, into buf: inout [UInt8]) {
         FfiConverterInt64.write(value.createdAt, into: &buf)
         FfiConverterString.write(value.idHex, into: &buf)
+        FfiConverterOptionData.write(value.imageBytes, into: &buf)
+        FfiConverterOptionString.write(value.imageMime, into: &buf)
         FfiConverterString.write(value.text, into: &buf)
     }
 }
@@ -880,6 +931,54 @@ extension SessionError: Foundation.LocalizedError {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
+    typealias SwiftType = String?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeAppliedClipFfi: FfiConverterRustBuffer {
     typealias SwiftType = AppliedClipFfi?
 
@@ -947,6 +1046,15 @@ public func linkKeyToBase32(key: Data) -> String  {
     )
 })
 }
+/**
+ * Encoded image soft cap (~5 MiB) exposed for Shell capture policy.
+ */
+public func maxImageBytes() -> UInt64  {
+    return try!  FfiConverterUInt64.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_max_image_bytes($0
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -978,6 +1086,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_clip_ffi_checksum_func_link_key_to_base32() != 22178) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_clip_ffi_checksum_func_max_image_bytes() != 56117) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_clip_ffi_checksum_method_session_is_armed() != 23434) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -985,6 +1096,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_clip_ffi_checksum_method_session_publish_text() != 18117) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_method_session_publish_text_and_image() != 64340) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_clip_ffi_checksum_method_session_set_armed() != 8551) {

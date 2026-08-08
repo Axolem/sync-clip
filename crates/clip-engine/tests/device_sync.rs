@@ -202,6 +202,86 @@ async fn lww_tie_break_prefers_greater_id_bytewise() {
     relay.shutdown();
 }
 
+#[tokio::test]
+async fn in_cap_image_roundtrips_between_devices() {
+    let relay = start_test_relay().await;
+    let url = relay.ws_url();
+    let (mut a, mut b) = join_pair(&url).await;
+
+    let png = b"\x89PNG\r\nin-cap-image".to_vec();
+    a.publish("caption", Some((png.clone(), "image/png".into())), 1_700_000_001_000)
+        .await
+        .expect("publish image");
+
+    let applied = next_applied_timeout(&mut b, 2_000)
+        .await
+        .expect("B should apply image Clip");
+    assert_eq!(applied.text, "caption");
+    let image = applied.image.expect("image present");
+    assert_eq!(image.mime, "image/png");
+    assert_eq!(image.bytes, png);
+
+    relay.shutdown();
+}
+
+#[tokio::test]
+async fn over_cap_image_is_omitted_but_text_still_syncs() {
+    let relay = start_test_relay().await;
+    let url = relay.ws_url();
+    let (mut a, mut b) = join_pair(&url).await;
+
+    let oversized = vec![0xAB; clip_engine::MAX_IMAGE_BYTES + 1];
+    a.publish(
+        "text survives",
+        Some((oversized, "image/png".into())),
+        1_700_000_001_100,
+    )
+    .await
+    .expect("publish with over-cap image");
+
+    let applied = next_applied_timeout(&mut b, 2_000)
+        .await
+        .expect("B should apply text-only Clip");
+    assert_eq!(applied.text, "text survives");
+    assert!(applied.image.is_none(), "over-cap image must be omitted");
+
+    relay.shutdown();
+}
+
+#[tokio::test]
+async fn rotated_link_key_isolates_old_sync_group() {
+    let relay = start_test_relay().await;
+    let url = relay.ws_url();
+    let old_key = LinkKey([0x11; 32]);
+    let new_key = LinkKey([0x22; 32]);
+
+    let mut a = Device::join(new_key, &url, [0xA1; 16])
+        .await
+        .expect("A new key");
+    let mut b = Device::join(new_key, &url, [0xB2; 16])
+        .await
+        .expect("B new key");
+    let mut c = Device::join(old_key, &url, [0xC3; 16])
+        .await
+        .expect("C old key");
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    a.publish_text("only new Sync Group", 1_700_000_001_200)
+        .await
+        .expect("publish");
+
+    let applied = next_applied_timeout(&mut b, 2_000)
+        .await
+        .expect("B on new key applies");
+    assert_eq!(applied.text, "only new Sync Group");
+    assert!(
+        next_applied_timeout(&mut c, 400).await.is_err(),
+        "C on old Link Key must not receive new-group Clips"
+    );
+
+    relay.shutdown();
+}
+
 /// Extra check: raw WS observer sees only ciphertext fields on the wire.
 #[tokio::test]
 async fn wire_observer_never_sees_clip_plaintext_fields() {
