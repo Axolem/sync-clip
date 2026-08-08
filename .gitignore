@@ -5,6 +5,8 @@
 # Swift / Xcode
 apps/macos-shell/.build/
 apps/macos-shell/.swiftpm/
+apps/macos-shell/lib/
+apps/android-shell/app/src/main/jniLibs/
 **/DerivedData/
 *.xcuserdata
 *.xcworkspace/xcuserdata/

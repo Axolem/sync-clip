@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   rust:
-    name: Clip Engine + relay
+    name: Clip Engine + relay + FFI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,9 +26,19 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build clip-ffi staticlib
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build -p clip-ffi
+          mkdir -p apps/macos-shell/lib
+          cp target/debug/libclip_ffi.a apps/macos-shell/lib/libclip_ffi.a
       - name: Build macOS Shell
         working-directory: apps/macos-shell
         run: swift build
+      - name: Test macOS Shell
+        working-directory: apps/macos-shell
+        run: swift test
 
   android-shell:
     name: Android Shell
@@ -40,10 +50,19 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: android-actions/setup-android@v3
-      - name: Install SDK packages
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - name: Install SDK / NDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;35.0.0"
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.0.12077973"
+      - name: Build Android JNI (clip-ffi)
+        env:
+          NDK_VERSION: "27.0.12077973"
+        run: |
+          source "$HOME/.cargo/env"
+          ./scripts/build-android-jni.sh
       - name: Assemble debug
         working-directory: apps/android-shell
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug test --no-daemon
