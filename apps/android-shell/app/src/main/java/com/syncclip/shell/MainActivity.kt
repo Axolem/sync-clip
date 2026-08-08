@@ -13,17 +13,20 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import uniffi.clip_ffi.defaultRelayWsUrl
 import uniffi.clip_ffi.generateEphemeralId
 import uniffi.clip_ffi.generateLinkKey
 import uniffi.clip_ffi.linkKeyFromBase32
 import uniffi.clip_ffi.linkKeyToBase32
 
 /**
- * Android Shell UI: Link Key, Armed/Paused, relay URL.
+ * Android Shell UI: Link Key, Armed/Paused, relay URL, Local Nickname, rotation.
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var armedSwitch: Switch
     private lateinit var linkKeyField: EditText
+    private lateinit var nicknameField: EditText
+    private lateinit var nicknameStore: LocalNicknameStore
     private lateinit var relayField: EditText
     private lateinit var statusView: TextView
     private lateinit var store: LinkKeyStore
@@ -31,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         store = LinkKeyStore(this)
+        nicknameStore = LocalNicknameStore(this)
         requestNotificationPermissionIfNeeded()
 
         val root =
@@ -41,10 +45,31 @@ class MainActivity : AppCompatActivity() {
 
         statusView =
             TextView(this).apply {
-                text = "Sync Clip Android Shell"
+                text = titleLabel()
                 textSize = 18f
             }
         root.addView(statusView)
+
+        nicknameField =
+            EditText(this).apply {
+                hint = "Local Nickname (this Device only)"
+                setSingleLine()
+            }
+        root.addView(nicknameField)
+
+        val saveNickname =
+            Button(this).apply {
+                text = "Save Local Nickname"
+                setOnClickListener { onSaveNickname() }
+            }
+        root.addView(saveNickname)
+
+        val clearNickname =
+            Button(this).apply {
+                text = "Clear Local Nickname"
+                setOnClickListener { onClearNickname() }
+            }
+        root.addView(clearNickname)
 
         linkKeyField =
             EditText(this).apply {
@@ -57,7 +82,7 @@ class MainActivity : AppCompatActivity() {
             EditText(this).apply {
                 hint = "Relay WebSocket URL"
                 setSingleLine()
-                setText(LinkKeyStore.DEFAULT_RELAY)
+                setText(defaultRelayWsUrl())
             }
         root.addView(relayField)
 
@@ -75,6 +100,13 @@ class MainActivity : AppCompatActivity() {
             }
         root.addView(saveJoin)
 
+        val rotate =
+            Button(this).apply {
+                text = "Rotate Link Key"
+                setOnClickListener { onRotate() }
+            }
+        root.addView(rotate)
+
         armedSwitch =
             Switch(this).apply {
                 text = "Armed"
@@ -88,12 +120,32 @@ class MainActivity : AppCompatActivity() {
         syncServiceWithArmedState()
     }
 
+    private fun titleLabel(): String {
+        val nick = nicknameStore.load()
+        return if (nick != null) "Sync Clip · $nick" else "Sync Clip Android Shell"
+    }
+
     private fun restoreFields() {
+        nicknameField.setText(nicknameStore.load().orEmpty())
+        statusView.text = titleLabel()
         val credentials = store.load() ?: return
         linkKeyField.setText(linkKeyToBase32(credentials.linkKey))
         relayField.setText(credentials.relayWsUrl)
         armedSwitch.isChecked = store.isArmed()
-        statusView.text = "Joined Sync Group (Link Key loaded)"
+        statusView.text = "${titleLabel()} — Link Key loaded"
+    }
+
+    private fun onSaveNickname() {
+        nicknameStore.save(nicknameField.text?.toString().orEmpty())
+        statusView.text = titleLabel()
+        Toast.makeText(this, "Local Nickname saved (local only)", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun onClearNickname() {
+        nicknameStore.clear()
+        nicknameField.setText("")
+        statusView.text = titleLabel()
+        Toast.makeText(this, "Local Nickname cleared", Toast.LENGTH_SHORT).show()
     }
 
     private fun onGenerate() {
@@ -101,7 +153,7 @@ class MainActivity : AppCompatActivity() {
         val encoded = linkKeyToBase32(key)
         linkKeyField.setText(encoded)
         if (relayField.text.isNullOrBlank()) {
-            relayField.setText(LinkKeyStore.DEFAULT_RELAY)
+            relayField.setText(defaultRelayWsUrl())
         }
         Toast.makeText(this, "Link Key generated — tap Save / Join", Toast.LENGTH_SHORT).show()
     }
@@ -118,7 +170,7 @@ class MainActivity : AppCompatActivity() {
             val ephemeral = existing?.ephemeralId ?: generateEphemeralId()
             val relay =
                 relayField.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
-                    ?: LinkKeyStore.DEFAULT_RELAY
+                    ?: defaultRelayWsUrl()
             val credentials =
                 ShellCredentials(
                     ephemeralId = ephemeral,
@@ -126,11 +178,49 @@ class MainActivity : AppCompatActivity() {
                     relayWsUrl = relay,
                 )
             store.save(credentials)
-            statusView.text = "Link Key saved"
+            statusView.text = "${titleLabel()} — Link Key saved"
             syncServiceWithArmedState()
-            Toast.makeText(this, "Joined Sync Group", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Joined Sync Group (or sync idle if relay unreachable)", Toast.LENGTH_SHORT)
+                .show()
         } catch (e: Exception) {
-            Toast.makeText(this, "Invalid Link Key: ${e.message}", Toast.LENGTH_LONG).show()
+            statusView.text = "${titleLabel()} — sync idle: ${e.message}"
+            Toast.makeText(this, "Join soft-fail: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun onRotate() {
+        try {
+            val existing = store.load()
+            val ephemeral = existing?.ephemeralId ?: generateEphemeralId()
+            val relay =
+                relayField.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() }
+                    ?: existing?.relayWsUrl
+                    ?: defaultRelayWsUrl()
+            val encodedField = linkKeyField.text?.toString()?.trim().orEmpty()
+            val newKey =
+                if (encodedField.isNotEmpty() && existing != null &&
+                    encodedField != linkKeyToBase32(existing.linkKey)
+                ) {
+                    linkKeyFromBase32(encodedField)
+                } else {
+                    generateLinkKey()
+                }
+            store.clear()
+            val credentials =
+                ShellCredentials(
+                    ephemeralId = ephemeral,
+                    linkKey = newKey,
+                    relayWsUrl = relay,
+                )
+            store.save(credentials)
+            linkKeyField.setText(linkKeyToBase32(newKey))
+            relayField.setText(relay)
+            statusView.text = "${titleLabel()} — Link Key rotated"
+            syncServiceWithArmedState()
+            Toast.makeText(this, "Rotated Link Key", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            statusView.text = "${titleLabel()} — rotate soft-fail: ${e.message}"
+            Toast.makeText(this, "Rotate soft-fail: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -142,7 +232,7 @@ class MainActivity : AppCompatActivity() {
     private fun syncServiceWithArmedState() {
         if (store.load() == null) return
         if (store.isArmed()) {
-            ClipboardSyncService.startArmed(this)
+            ClipboardSyncService.rejoin(this)
         } else {
             ClipboardSyncService.pause(this)
         }

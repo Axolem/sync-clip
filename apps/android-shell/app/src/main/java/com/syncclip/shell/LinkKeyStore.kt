@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import uniffi.clip_ffi.defaultRelayWsUrl
 
 /**
  * Secure Link Key + ephemeral id + relay URL storage for the Android Shell.
@@ -29,7 +30,7 @@ class LinkKeyStore(context: Context) {
     fun load(): ShellCredentials? {
         val linkKeyB64 = prefs.getString(KEY_LINK_KEY, null) ?: return null
         val ephemeralB64 = prefs.getString(KEY_EPHEMERAL, null) ?: return null
-        val relay = prefs.getString(KEY_RELAY, DEFAULT_RELAY) ?: DEFAULT_RELAY
+        val relay = prefs.getString(KEY_RELAY, null) ?: defaultRelayWsUrl()
         return ShellCredentials(
             ephemeralId = android.util.Base64.decode(ephemeralB64, android.util.Base64.DEFAULT),
             linkKey = android.util.Base64.decode(linkKeyB64, android.util.Base64.DEFAULT),
@@ -51,6 +52,15 @@ class LinkKeyStore(context: Context) {
             .apply()
     }
 
+    /** Clears the stored Link Key and related Sync Group credentials. */
+    fun clear() {
+        prefs.edit()
+            .remove(KEY_LINK_KEY)
+            .remove(KEY_EPHEMERAL)
+            .remove(KEY_RELAY)
+            .apply()
+    }
+
     fun isArmed(): Boolean = prefs.getBoolean(KEY_ARMED, true)
 
     fun setArmed(armed: Boolean) {
@@ -58,7 +68,6 @@ class LinkKeyStore(context: Context) {
     }
 
     companion object {
-        const val DEFAULT_RELAY: String = "ws://127.0.0.1:7120/v0/ws"
         private const val KEY_ARMED = "armed"
         private const val KEY_EPHEMERAL = "ephemeral_id"
         private const val KEY_LINK_KEY = "link_key"

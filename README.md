@@ -78,11 +78,14 @@ cd apps/android-shell
 1. Start the relay: `cargo run -p relay -- --bind 127.0.0.1:7120`
 2. macOS: `swift run` from `apps/macos-shell` (after copying `libclip_ffi.a` as above).
    - Menu → **Generate Link Key** (or Enter Link Key). Leave **Armed** on.
+   - Optional: **Relay URL…**, **Rotate Link Key…**, **Local Nickname…**
 3. Android: install debug APK with JNI libs built.
-   - Paste the same Link Key, confirm relay `ws://127.0.0.1:7120/v0/ws` (use `10.0.2.2:7120` for emulator → host), **Save / Join**, keep **Armed**.
-4. Copy plain text on one Device; paste on the other.
+   - Paste the same Link Key, confirm relay from `defaultRelayWsUrl()` (use `10.0.2.2:7120` for emulator → host), **Save / Join**, keep **Armed**.
+   - Optional: Local Nickname, **Rotate Link Key**, edit relay URL then Save / Join.
+4. Copy plain text or an in-cap image (~5 MiB encoded max) on one Device; paste on the other.
+   - Text + oversized image → text syncs; image is omitted.
 
-Pause on either Shell stops publish and accept; Arm resumes. Remote clipboard writes are echo-suppressed (Engine + Shell ignore flags).
+Pause on either Shell stops publish and accept; Arm resumes. Unreachable relays fail soft (Armed stays on; sync idle). Remote clipboard writes are echo-suppressed (Engine + Shell ignore flags). Link Key rotation replaces the Sync Group credential on that Device; Devices still on the old key no longer exchange Clips with rotators. Local Nickname is UI-only and never enters Clip plaintext or the relay.
 
 ## Vocabulary
 
