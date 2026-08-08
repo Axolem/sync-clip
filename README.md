@@ -8,7 +8,7 @@ This monorepo holds the shared **Clip Engine** (Rust), the encrypted **relay**, 
 
 ```
 crates/clip-engine/   # Clip Engine library (Rust)
-crates/relay/         # Encrypted relay binary skeleton (Rust)
+crates/relay/         # Encrypted relay (WebSocket, ciphertext only)
 apps/macos-shell/     # macOS Shell (Swift Package)
 apps/android-shell/   # Android Shell (Gradle / Kotlin)
 ```
@@ -29,12 +29,14 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-Relay CLI skeleton:
+Relay CLI:
 
 ```bash
 cargo run -p relay -- --help
-cargo run -p relay -- --engine-version
+cargo run -p relay -- --bind 127.0.0.1:8787
 ```
+
+WebSocket endpoint: `ws://<bind>/v0/ws` (ciphertext envelopes only; see `docs/protocol/clip-wire-v0.md`).
 
 ### macOS Shell
 

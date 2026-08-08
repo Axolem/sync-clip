@@ -3,13 +3,29 @@ name = "relay"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Encrypted relay skeleton for Clip delivery between Shells in a Sync Group"
+description = "Encrypted relay for opaque Clip envelopes between Devices in a Sync Group"
 publish = false
 
 [[bin]]
 name = "relay"
 path = "src/main.rs"
 
+[lib]
+name = "relay"
+path = "src/lib.rs"
+
 [dependencies]
+axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
-clip-engine = { path = "../clip-engine" }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tower = "0.5"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio-tungstenite = "0.26"

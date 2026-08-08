@@ -1,44 +1,49 @@
-//! Encrypted relay skeleton for Sync Clip.
-//!
-//! Shells will connect using material derived from the Link Key; the relay
-//! only stores and forwards ciphertext. This binary is a buildable stub —
-//! no sync protocol yet.
+//! Encrypted relay for Sync Clip — opaque envelope WebSocket server.
 
 use clap::Parser;
-use clip_engine;
+use relay::{start_relay, RelayConfig, DEFAULT_TTL};
+use std::net::SocketAddr;
+use std::time::Duration;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "relay",
-    about = "Encrypted relay skeleton for Clip delivery (no protocol yet)",
+    about = "Encrypted relay for Clip delivery (ciphertext only)",
     version
 )]
 struct Args {
-    /// Print Clip Engine version and exit.
-    #[arg(long)]
-    engine_version: bool,
+    /// Bind address (default 127.0.0.1:8787).
+    #[arg(long, default_value = "127.0.0.1:8787")]
+    bind: SocketAddr,
+
+    /// Buffer TTL in seconds (default 900 = 15 minutes).
+    #[arg(long, default_value_t = 900)]
+    ttl_secs: u64,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     let args = Args::parse();
+    let ttl = if args.ttl_secs == 900 {
+        DEFAULT_TTL
+    } else {
+        Duration::from_secs(args.ttl_secs)
+    };
+    let handle = start_relay(RelayConfig {
+        bind: args.bind,
+        ttl,
+    })
+    .await
+    .expect("bind relay");
 
-    if args.engine_version {
-        println!("{}", clip_engine::version());
-        return;
-    }
-
-    // Skeleton only: bind nothing and exit cleanly after --help / default run.
-    println!(
-        "sync-clip relay {} (Clip Engine {}) — skeleton; no listeners yet",
-        env!("CARGO_PKG_VERSION"),
-        clip_engine::version()
-    );
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn clip_engine_ping() {
-        assert_eq!(clip_engine::ping(), "pong");
-    }
+    tracing::info!("sync-clip relay listening on {}", handle.ws_url());
+    // Park forever; process exit stops the server.
+    std::future::pending::<()>().await;
 }

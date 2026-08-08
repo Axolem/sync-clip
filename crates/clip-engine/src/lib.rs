@@ -3,6 +3,14 @@
 //! Owns the Clip model, end-to-end encryption, sync protocol, Armed/Paused
 //! rules, and echo suppression. Native Shells link this crate over FFI.
 
+mod crypto;
+mod device;
+mod envelope;
+
+pub use crypto::{channel_id_hex, derive_aead_key, derive_channel_id};
+pub use device::{AppliedClip, ClipId, Device, DeviceError};
+pub use envelope::{ClipImage, Envelope, EnvelopeError, LinkKey, SealedEnvelope, TextClip};
+
 /// Semantic version of the Clip Engine library crate.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
