@@ -1,0 +1,17 @@
+services:
+  relay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - --bind
+      - 0.0.0.0:7120
+      - --ttl-secs
+      - "${RELAY_TTL_SECS:-900}"
+    container_name: sync-clip-relay
+    environment:
+      RUST_LOG: ${RUST_LOG:-info}
+    image: ${IMAGE:-sync-clip-relay:latest}
+    ports:
+      - "${RELAY_PORT:-7120}:7120"
+    restart: unless-stopped

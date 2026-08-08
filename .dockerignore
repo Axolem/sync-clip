@@ -1,0 +1,17 @@
+.git
+.github
+.target
+**/target
+apps
+docs
+scripts
+**/.build
+**/.gradle
+**/build
+**/jniLibs
+**/.swiftpm
+**/*.md
+!README.md
+.DS_Store
+.cursor
+.vscode

@@ -47,6 +47,49 @@ cargo run -p relay -- --bind 127.0.0.1:7120
 
 WebSocket endpoint: `ws://127.0.0.1:7120/v0/ws` (ciphertext envelopes only; see `docs/protocol/clip-wire-v0.md`).
 
+### Docker (hosted relay)
+
+The relay is ciphertext-only and has no accounts. Put TLS in front with your reverse proxy if you want `wss://`.
+
+**CI** builds the image on GitHub Actions and publishes to GHCR on `main`:
+
+```bash
+docker pull ghcr.io/axolem/sync-clip/relay:latest
+docker run --rm -p 7120:7120 -e RUST_LOG=info ghcr.io/axolem/sync-clip/relay:latest
+```
+
+If the package is private, authenticate first:
+
+```bash
+echo "$GH_TOKEN" | docker login ghcr.io -u USERNAME --password-stdin
+```
+
+Local build + run:
+
+```bash
+# Build + run (port 7120 on the host)
+docker compose up -d --build
+
+# Or plain Docker
+docker build -t sync-clip-relay .
+docker run --rm -p 7120:7120 -e RUST_LOG=info sync-clip-relay
+```
+
+Optional env (compose): `RELAY_PORT` (host port, default `7120`), `RELAY_TTL_SECS` (default `900`), `RUST_LOG`. Use `IMAGE=ghcr.io/axolem/sync-clip/relay:latest docker compose up -d` to run the published image without building.
+
+Point Shells at:
+
+- `ws://<host>:7120/v0/ws` (plain, LAN/VPS without TLS)
+- `wss://relay.example.com/v0/ws` (behind Caddy/nginx/Traefik terminating TLS)
+
+Example Caddy snippet:
+
+```caddy
+relay.example.com {
+  reverse_proxy localhost:7120
+}
+```
+
 ### macOS Shell
 
 ```bash
