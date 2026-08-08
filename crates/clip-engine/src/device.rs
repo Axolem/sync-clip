@@ -129,6 +129,11 @@ impl Device {
         self.applied_rx.recv().await.ok_or(DeviceError::Closed)
     }
 
+    /// Non-blocking poll for an applied remote Clip (FFI Session facade).
+    pub fn try_applied_clip(&mut self) -> Option<AppliedClip> {
+        self.applied_rx.try_recv().ok()
+    }
+
     /// Publish a Clip with an explicit id (tests / echo simulation).
     pub async fn publish_text_with_id(
         &mut self,
