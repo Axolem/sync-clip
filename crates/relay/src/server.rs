@@ -12,10 +12,14 @@ use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use std::collections::HashSet;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
+
+/// How often the relay logs the live WebSocket connection count.
+const CONNECTION_STATS_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Relay runtime configuration.
 #[derive(Clone, Debug)]
@@ -37,11 +41,16 @@ impl Default for RelayConfig {
 #[derive(Clone)]
 pub struct RelayHandle {
     pub buffer: ChannelBuffer,
+    connections: Arc<AtomicUsize>,
     pub local_addr: SocketAddr,
     shutdown: Arc<tokio::sync::Notify>,
 }
 
 impl RelayHandle {
+    pub fn connected_count(&self) -> usize {
+        self.connections.load(Ordering::SeqCst)
+    }
+
     pub fn ws_url(&self) -> String {
         format!("ws://{}/v0/ws", self.local_addr)
     }
@@ -54,13 +63,31 @@ impl RelayHandle {
 #[derive(Clone)]
 struct AppState {
     buffer: ChannelBuffer,
+    connections: Arc<AtomicUsize>,
+}
+
+/// Decrements the live connection counter when a WebSocket task ends.
+struct ConnectionGuard {
+    connections: Arc<AtomicUsize>,
+}
+
+impl Drop for ConnectionGuard {
+    fn drop(&mut self) {
+        let previous = self.connections.fetch_sub(1, Ordering::SeqCst);
+        tracing::info!(
+            connected = previous.saturating_sub(1),
+            "websocket disconnected"
+        );
+    }
 }
 
 /// Bind and serve the relay. Returns once listening; runs until shutdown notified.
 pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
     let buffer = ChannelBuffer::new(config.ttl);
+    let connections = Arc::new(AtomicUsize::new(0));
     let state = AppState {
         buffer: buffer.clone(),
+        connections: connections.clone(),
     };
     let app = Router::new()
         .route("/v0/ws", get(ws_handler))
@@ -70,6 +97,8 @@ pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
     let local_addr = listener.local_addr()?;
     let shutdown = Arc::new(tokio::sync::Notify::new());
     let shutdown_wait = shutdown.clone();
+    let shutdown_stats = shutdown.clone();
+    let connections_stats = connections.clone();
 
     tokio::spawn(async move {
         axum::serve(listener, app)
@@ -80,8 +109,27 @@ pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
             .ok();
     });
 
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(CONNECTION_STATS_INTERVAL);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        // Consume the immediate first tick so the first log is after one full interval.
+        ticker.tick().await;
+        loop {
+            tokio::select! {
+                _ = shutdown_stats.notified() => break,
+                _ = ticker.tick() => {
+                    tracing::info!(
+                        connected = connections_stats.load(Ordering::SeqCst),
+                        "relay connections"
+                    );
+                }
+            }
+        }
+    });
+
     Ok(RelayHandle {
         buffer,
+        connections,
         local_addr,
         shutdown,
     })
@@ -92,6 +140,12 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState) {
+    let connected = state.connections.fetch_add(1, Ordering::SeqCst) + 1;
+    tracing::info!(connected, "websocket connected");
+    let _guard = ConnectionGuard {
+        connections: state.connections.clone(),
+    };
+
     let (mut sink, mut stream) = socket.split();
     let mut subscribed: HashSet<String> = HashSet::new();
     let (fanout_tx, mut fanout_rx) = mpsc::unbounded_channel::<BufferEvent>();
@@ -102,6 +156,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                 match evt {
                     Some(event) => {
                         if let Some(msg) = event_to_server(event) {
+                            log_outbound(&msg);
                             if send_server(&mut sink, &msg).await.is_err() {
                                 break;
                             }
@@ -116,6 +171,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                         let parsed: Result<ClientMessage, _> = serde_json::from_str(&text);
                         match parsed {
                             Ok(ClientMessage::Subscribe { channel_id }) => {
+                                tracing::info!(
+                                    channel_id = %channel_id,
+                                    direction = "in",
+                                    msg_type = "subscribe",
+                                    "relay message"
+                                );
                                 if !is_valid_channel_id(&channel_id) {
                                     let _ = send_server(
                                         &mut sink,
@@ -129,6 +190,7 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 }
                                 let snap = state.buffer.snapshot_event(&channel_id).await;
                                 if let Some(msg) = event_to_server(snap) {
+                                    log_outbound(&msg);
                                     if send_server(&mut sink, &msg).await.is_err() {
                                         break;
                                     }
@@ -152,6 +214,12 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 }
                             }
                             Ok(ClientMessage::Unsubscribe { channel_id }) => {
+                                tracing::info!(
+                                    channel_id = %channel_id,
+                                    direction = "in",
+                                    msg_type = "unsubscribe",
+                                    "relay message"
+                                );
                                 subscribed.remove(&channel_id);
                             }
                             Ok(ClientMessage::Publish {
@@ -160,6 +228,15 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 nonce,
                                 protocol_version,
                             }) => {
+                                tracing::info!(
+                                    channel_id = %channel_id,
+                                    ciphertext_b64_len = ciphertext.len(),
+                                    direction = "in",
+                                    msg_type = "publish",
+                                    nonce_b64_len = nonce.len(),
+                                    protocol_version,
+                                    "relay message"
+                                );
                                 if let Err(msg) = handle_publish(
                                     &state.buffer,
                                     channel_id,
@@ -169,18 +246,22 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                                 )
                                 .await
                                 {
+                                    log_outbound(&msg);
                                     let _ = send_server(&mut sink, &msg).await;
                                 }
                             }
                             Err(_) => {
-                                let _ = send_server(
-                                    &mut sink,
-                                    &ServerMessage::Error {
-                                        code: "bad_request".into(),
-                                        message: "invalid json".into(),
-                                    },
-                                )
-                                .await;
+                                tracing::warn!(
+                                    direction = "in",
+                                    msg_type = "invalid_json",
+                                    "relay message"
+                                );
+                                let err = ServerMessage::Error {
+                                    code: "bad_request".into(),
+                                    message: "invalid json".into(),
+                                };
+                                log_outbound(&err);
+                                let _ = send_server(&mut sink, &err).await;
                             }
                         }
                     }
@@ -194,6 +275,46 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
                     Some(Err(_)) => break,
                 }
             }
+        }
+    }
+}
+
+fn log_outbound(msg: &ServerMessage) {
+    match msg {
+        ServerMessage::Empty { channel_id } => {
+            tracing::info!(
+                channel_id = %channel_id,
+                direction = "out",
+                msg_type = "empty",
+                "relay message"
+            );
+        }
+        ServerMessage::Envelope {
+            channel_id,
+            ciphertext,
+            nonce,
+            protocol_version,
+            published_at,
+        } => {
+            tracing::info!(
+                channel_id = %channel_id,
+                ciphertext_b64_len = ciphertext.len(),
+                direction = "out",
+                msg_type = "envelope",
+                nonce_b64_len = nonce.len(),
+                protocol_version,
+                published_at,
+                "relay message"
+            );
+        }
+        ServerMessage::Error { code, message } => {
+            tracing::info!(
+                code = %code,
+                direction = "out",
+                message = %message,
+                msg_type = "error",
+                "relay message"
+            );
         }
     }
 }

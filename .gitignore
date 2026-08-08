@@ -31,3 +31,6 @@ captures/
 *~
 .vscode/
 .cursor/
+
+# Local build artifacts
+/dist/

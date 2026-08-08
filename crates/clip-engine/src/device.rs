@@ -5,11 +5,41 @@ use crate::envelope::{ClipImage, Envelope, LinkKey, SealedEnvelope, TextClip};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, Once};
 use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
-use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::{
+    connect_async_tls_with_config, tungstenite::Message, Connector, MaybeTlsStream,
+    WebSocketStream,
+};
 use uuid::Uuid;
+
+static INSTALL_RUSTLS_PROVIDER: Once = Once::new();
+
+/// Install the `ring` CryptoProvider as the process default (idempotent).
+///
+/// Call early from FFI entry points. Shell staticlibs/cdylibs do not always get
+/// rustls feature auto-detection, so joins also pass an explicit connector.
+pub fn ensure_rustls_crypto_provider() {
+    INSTALL_RUSTLS_PROVIDER.call_once(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
+
+/// rustls connector that never relies on process-default provider auto-detect.
+fn rustls_webpki_connector() -> Result<Connector, DeviceError> {
+    ensure_rustls_crypto_provider();
+    let mut roots = rustls::RootCertStore::empty();
+    roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let config = rustls::ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map_err(|e| DeviceError::WebSocket(format!("rustls protocol versions: {e}")))?
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    Ok(Connector::Rustls(Arc::new(config)))
+}
 
 /// Opaque Clip id (16 bytes).
 pub type ClipId = [u8; 16];
@@ -72,9 +102,15 @@ impl Device {
     ) -> Result<Self, DeviceError> {
         let relay_url = relay_url.into();
         let channel_hex = channel_id_hex(&link_key);
-        let (ws, _) = connect_async(&relay_url)
-            .await
-            .map_err(|e| DeviceError::WebSocket(e.to_string()))?;
+        let connector = rustls_webpki_connector()?;
+        let (ws, _) = connect_async_tls_with_config(
+            relay_url.as_str(),
+            None,
+            false,
+            Some(connector),
+        )
+        .await
+        .map_err(|e| DeviceError::WebSocket(e.to_string()))?;
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (applied_tx, applied_rx) = mpsc::unbounded_channel();

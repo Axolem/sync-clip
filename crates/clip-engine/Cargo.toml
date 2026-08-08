@@ -18,14 +18,17 @@ futures-util = "0.3"
 hex = "0.4"
 hkdf = "0.12"
 rand = "0.8"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
 serde_json = "1"
 sha2 = "0.10"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
-tokio-tungstenite = "0.26"
+# rustls so wss:// works in Shell FFI (macOS staticlib + Android cdylib) without OpenSSL.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 uuid = { version = "1", features = ["v4"] }
+webpki-roots = "0.26"
 
 [dev-dependencies]
 base64 = "0.22"
@@ -33,4 +36,4 @@ futures-util = "0.3"
 relay = { path = "../relay" }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
-tokio-tungstenite = "0.26"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }

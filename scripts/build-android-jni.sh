@@ -9,9 +9,9 @@ source "$HOME/.cargo/env"
 ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 NDK_VERSION="${NDK_VERSION:-27.0.12077973}"
 NDK_HOME="${NDK_HOME:-$ANDROID_HOME/ndk/$NDK_VERSION}"
+PROFILE="${PROFILE:-release}"
 
 if [[ ! -d "$NDK_HOME" ]]; then
-  # Fall back to any installed NDK.
   if [[ -d "$ANDROID_HOME/ndk" ]]; then
     NDK_HOME="$(ls -d "$ANDROID_HOME/ndk"/* | sort -V | tail -1)"
   fi
@@ -24,8 +24,6 @@ fi
 
 HOST_TAG="$(uname -s | tr '[:upper:]' '[:lower:]')-x86_64"
 if [[ "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
-  # Apple Silicon NDK still uses darwin-x86_64 toolchain path historically;
-  # newer NDKs also ship darwin-aarch64.
   if [[ -d "$NDK_HOME/toolchains/llvm/prebuilt/darwin-aarch64" ]]; then
     HOST_TAG="darwin-aarch64"
   else
@@ -51,9 +49,12 @@ build_abi() {
   local jni_abi="$2"
   local clang_triple="$3"
   local clang="$TOOLCHAIN/bin/${clang_triple}${API}-clang"
+  local clangxx="$TOOLCHAIN/bin/${clang_triple}${API}-clang++"
   local ar="$TOOLCHAIN/bin/llvm-ar"
   local target_env
   target_env="$(echo "$rust_target" | tr '[:lower:]-' '[:upper:]_')"
+  local wrap
+  wrap="$(mktemp -d)"
 
   if [[ ! -x "$clang" ]]; then
     echo "Missing NDK clang: $clang" >&2
@@ -62,20 +63,37 @@ build_abi() {
 
   rustup_add_if_needed "$rust_target"
 
+  # ring/cc-rs looks for `<triple>-clang` without the API level suffix.
+  ln -sf "$clang" "$wrap/${clang_triple}-clang"
+  ln -sf "$clangxx" "$wrap/${clang_triple}-clang++"
+  ln -sf "$ar" "$wrap/${clang_triple}-ar"
+  ln -sf "$ar" "$wrap/llvm-ar"
+  export PATH="$wrap:$PATH"
+
   export "AR_${target_env}=$ar"
   export "CC_${target_env}=$clang"
+  export "CXX_${target_env}=$clangxx"
   export "CARGO_TARGET_${target_env}_LINKER=$clang"
+  export "CARGO_TARGET_${target_env}_AR=$ar"
+  export "CC_${rust_target//-/_}=$clang"
+  export "AR_${rust_target//-/_}=$ar"
 
-  echo "Building clip-ffi for $rust_target ($jni_abi)…"
-  cargo build -p clip-ffi --target "$rust_target"
+  echo "Building clip-ffi ($PROFILE) for $rust_target ($jni_abi)…"
+  if [[ "$PROFILE" == "release" ]]; then
+    cargo build -p clip-ffi --release --target "$rust_target"
+    local lib="$ROOT/target/$rust_target/release/libclip_ffi.so"
+  else
+    cargo build -p clip-ffi --target "$rust_target"
+    local lib="$ROOT/target/$rust_target/debug/libclip_ffi.so"
+  fi
 
   local dest="$ROOT/apps/android-shell/app/src/main/jniLibs/$jni_abi"
   mkdir -p "$dest"
-  cp "$ROOT/target/$rust_target/debug/libclip_ffi.so" "$dest/libclip_ffi.so"
+  cp "$lib" "$dest/libclip_ffi.so"
+  rm -rf "$wrap"
 }
 
 cd "$ROOT"
-# Prefer arm64 for devices; build x86_64 when the Rust target is already installed (CI).
 build_abi aarch64-linux-android arm64-v8a aarch64-linux-android
 if rustup target list --installed | grep -qx x86_64-linux-android; then
   build_abi x86_64-linux-android x86_64 x86_64-linux-android

@@ -21,6 +21,8 @@ scripts/              # UniFFI generate + Android JNI helpers
 - Swift 5.9+ / Xcode Command Line Tools (macOS Shell)
 - JDK 17+, Android SDK + NDK (Android Shell). Set `ANDROID_HOME` (e.g. `~/Library/Android/sdk` on macOS)
 
+Default Shell relay URL is **`wss://clip.dotenv.co.za/v0/ws`** (`clip-ffi` `DEFAULT_RELAY_WS_URL`). Override in Shell settings for local/self-hosted relays.
+
 ## Build
 
 ### Clip Engine + relay + FFI (Cargo workspace)
@@ -39,13 +41,13 @@ cargo test --workspace
 
 ### Relay CLI
 
-Default demo bind for Shells is port **7120** (matches `clip-ffi` `DEFAULT_RELAY_WS_URL`):
+Local relay for development (optional — Shells default to the hosted URL):
 
 ```bash
 cargo run -p relay -- --bind 127.0.0.1:7120
 ```
 
-WebSocket endpoint: `ws://127.0.0.1:7120/v0/ws` (ciphertext envelopes only; see `docs/protocol/clip-wire-v0.md`).
+Local WebSocket endpoint: `ws://127.0.0.1:7120/v0/ws` (ciphertext envelopes only; see `docs/protocol/clip-wire-v0.md`).
 
 ### Docker (hosted relay)
 
@@ -77,10 +79,11 @@ docker run --rm -p 7120:7120 -e RUST_LOG=info sync-clip-relay
 
 Optional env (compose): `RELAY_PORT` (host port, default `7120`), `RELAY_TTL_SECS` (default `900`), `RUST_LOG`. Use `IMAGE=ghcr.io/axolem/sync-clip/relay:latest docker compose up -d` to run the published image without building.
 
-Point Shells at:
+Point Shells at (or keep the built-in default):
 
+- `wss://clip.dotenv.co.za/v0/ws` (hosted default)
 - `ws://<host>:7120/v0/ws` (plain, LAN/VPS without TLS)
-- `wss://relay.example.com/v0/ws` (behind Caddy/nginx/Traefik terminating TLS)
+- `wss://relay.example.com/v0/ws` (other self-hosted + TLS)
 
 Example Caddy snippet:
 
@@ -118,12 +121,12 @@ cd apps/android-shell
 
 ## Demo: macOS + Android on one Sync Group
 
-1. Start the relay: `cargo run -p relay -- --bind 127.0.0.1:7120`
+1. Relay: use the hosted default (`wss://clip.dotenv.co.za/v0/ws`), or start a local relay and set Relay URL in each Shell.
 2. macOS: `swift run` from `apps/macos-shell` (after copying `libclip_ffi.a` as above).
    - Menu → **Generate Link Key** (or Enter Link Key). Leave **Armed** on.
    - Optional: **Relay URL…**, **Rotate Link Key…**, **Local Nickname…**
 3. Android: install debug APK with JNI libs built.
-   - Paste the same Link Key, confirm relay from `defaultRelayWsUrl()` (use `10.0.2.2:7120` for emulator → host), **Save / Join**, keep **Armed**.
+   - Paste the same Link Key; relay defaults to `defaultRelayWsUrl()` (`wss://clip.dotenv.co.za/v0/ws`). **Save / Join**, keep **Armed**.
    - Optional: Local Nickname, **Rotate Link Key**, edit relay URL then Save / Join.
 4. Copy plain text or an in-cap image (~5 MiB encoded max) on one Device; paste on the other.
    - Text + oversized image → text syncs; image is omitted.

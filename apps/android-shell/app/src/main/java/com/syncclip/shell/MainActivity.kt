@@ -4,15 +4,18 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.Switch
+import android.view.View
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.switchmaterial.SwitchMaterial
+import com.google.android.material.textfield.TextInputEditText
 import uniffi.clip_ffi.defaultRelayWsUrl
 import uniffi.clip_ffi.generateEphemeralId
 import uniffi.clip_ffi.generateLinkKey
@@ -23,11 +26,11 @@ import uniffi.clip_ffi.linkKeyToBase32
  * Android Shell UI: Link Key, Armed/Paused, relay URL, Local Nickname, rotation.
  */
 class MainActivity : AppCompatActivity() {
-    private lateinit var armedSwitch: Switch
-    private lateinit var linkKeyField: EditText
-    private lateinit var nicknameField: EditText
+    private lateinit var armedSwitch: SwitchMaterial
+    private lateinit var linkKeyField: TextInputEditText
+    private lateinit var nicknameField: TextInputEditText
     private lateinit var nicknameStore: LocalNicknameStore
-    private lateinit var relayField: EditText
+    private lateinit var relayField: TextInputEditText
     private lateinit var statusView: TextView
     private lateinit var store: LinkKeyStore
 
@@ -36,98 +39,55 @@ class MainActivity : AppCompatActivity() {
         store = LinkKeyStore(this)
         nicknameStore = LocalNicknameStore(this)
         requestNotificationPermissionIfNeeded()
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        setContentView(R.layout.activity_main)
+        applySystemBarInsets(findViewById(R.id.rootScroll))
 
-        val root =
-            LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(48, 48, 48, 48)
-            }
+        statusView = findViewById(R.id.statusView)
+        nicknameField = findViewById(R.id.nicknameField)
+        linkKeyField = findViewById(R.id.linkKeyField)
+        relayField = findViewById(R.id.relayField)
+        armedSwitch = findViewById(R.id.armedSwitch)
 
-        statusView =
-            TextView(this).apply {
-                text = titleLabel()
-                textSize = 18f
-            }
-        root.addView(statusView)
+        findViewById<MaterialButton>(R.id.saveNicknameButton).setOnClickListener { onSaveNickname() }
+        findViewById<MaterialButton>(R.id.clearNicknameButton).setOnClickListener { onClearNickname() }
+        findViewById<MaterialButton>(R.id.generateButton).setOnClickListener { onGenerate() }
+        findViewById<MaterialButton>(R.id.saveJoinButton).setOnClickListener { onSaveJoin() }
+        findViewById<MaterialButton>(R.id.rotateButton).setOnClickListener { onRotate() }
 
-        nicknameField =
-            EditText(this).apply {
-                hint = "Local Nickname (this Device only)"
-                setSingleLine()
-            }
-        root.addView(nicknameField)
+        armedSwitch.setOnCheckedChangeListener { _, checked -> onArmedChanged(checked) }
 
-        val saveNickname =
-            Button(this).apply {
-                text = "Save Local Nickname"
-                setOnClickListener { onSaveNickname() }
-            }
-        root.addView(saveNickname)
-
-        val clearNickname =
-            Button(this).apply {
-                text = "Clear Local Nickname"
-                setOnClickListener { onClearNickname() }
-            }
-        root.addView(clearNickname)
-
-        linkKeyField =
-            EditText(this).apply {
-                hint = "Link Key (base32)"
-                setSingleLine()
-            }
-        root.addView(linkKeyField)
-
-        relayField =
-            EditText(this).apply {
-                hint = "Relay WebSocket URL"
-                setSingleLine()
-                setText(defaultRelayWsUrl())
-            }
-        root.addView(relayField)
-
-        val generate =
-            Button(this).apply {
-                text = "Generate Link Key"
-                setOnClickListener { onGenerate() }
-            }
-        root.addView(generate)
-
-        val saveJoin =
-            Button(this).apply {
-                text = "Save / Join"
-                setOnClickListener { onSaveJoin() }
-            }
-        root.addView(saveJoin)
-
-        val rotate =
-            Button(this).apply {
-                text = "Rotate Link Key"
-                setOnClickListener { onRotate() }
-            }
-        root.addView(rotate)
-
-        armedSwitch =
-            Switch(this).apply {
-                text = "Armed"
-                isChecked = store.isArmed()
-                setOnCheckedChangeListener { _, checked -> onArmedChanged(checked) }
-            }
-        root.addView(armedSwitch)
-
-        setContentView(root)
         restoreFields()
         syncServiceWithArmedState()
     }
 
+    private fun applySystemBarInsets(root: View) {
+        val initialLeft = root.paddingLeft
+        val initialTop = root.paddingTop
+        val initialRight = root.paddingRight
+        val initialBottom = root.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(
+                initialLeft + bars.left,
+                initialTop + bars.top,
+                initialRight + bars.right,
+                initialBottom + bars.bottom,
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
+    }
+
     private fun titleLabel(): String {
         val nick = nicknameStore.load()
-        return if (nick != null) "Sync Clip · $nick" else "Sync Clip Android Shell"
+        return if (nick != null) "Sync Clip · $nick" else getString(R.string.status_ready)
     }
 
     private fun restoreFields() {
         nicknameField.setText(nicknameStore.load().orEmpty())
         statusView.text = titleLabel()
+        relayField.setText(defaultRelayWsUrl())
         val credentials = store.load() ?: return
         linkKeyField.setText(linkKeyToBase32(credentials.linkKey))
         relayField.setText(credentials.relayWsUrl)
@@ -178,10 +138,9 @@ class MainActivity : AppCompatActivity() {
                     relayWsUrl = relay,
                 )
             store.save(credentials)
-            statusView.text = "${titleLabel()} — Link Key saved"
+            statusView.text = "${titleLabel()} — joined Sync Group"
             syncServiceWithArmedState()
-            Toast.makeText(this, "Joined Sync Group (or sync idle if relay unreachable)", Toast.LENGTH_SHORT)
-                .show()
+            Toast.makeText(this, "Joined Sync Group", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             statusView.text = "${titleLabel()} — sync idle: ${e.message}"
             Toast.makeText(this, "Join soft-fail: ${e.message}", Toast.LENGTH_LONG).show()
@@ -198,7 +157,8 @@ class MainActivity : AppCompatActivity() {
                     ?: defaultRelayWsUrl()
             val encodedField = linkKeyField.text?.toString()?.trim().orEmpty()
             val newKey =
-                if (encodedField.isNotEmpty() && existing != null &&
+                if (encodedField.isNotEmpty() &&
+                    existing != null &&
                     encodedField != linkKeyToBase32(existing.linkKey)
                 ) {
                     linkKeyFromBase32(encodedField)

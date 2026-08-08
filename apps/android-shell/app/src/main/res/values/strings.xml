@@ -1,4 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Sync Clip Shell</string>
+    <string name="app_name">Sync Clip</string>
+    <string name="section_device">This Device</string>
+    <string name="section_sync_group">Sync Group</string>
+    <string name="section_relay">Relay</string>
+    <string name="hint_nickname">Local nickname (never leaves this phone)</string>
+    <string name="hint_link_key">Link Key (base32)</string>
+    <string name="hint_relay">Relay WebSocket URL</string>
+    <string name="save_nickname">Save nickname</string>
+    <string name="clear_nickname">Clear</string>
+    <string name="generate_key">Generate key</string>
+    <string name="save_join">Save / Join</string>
+    <string name="rotate_key">Rotate key</string>
+    <string name="armed_label">Armed — sync clipboard</string>
+    <string name="status_ready">Ready</string>
 </resources>

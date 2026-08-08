@@ -19,6 +19,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Local/production sideload: sign with the Android debug keystore.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -42,6 +44,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("com.google.android.material:material:1.12.0")
     implementation("net.java.dev.jna:jna:5.15.0@aar")
 
     testImplementation("junit:junit:4.13.2")

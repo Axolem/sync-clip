@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ink">#FF1A1C1A</color>
+    <color name="ink_muted">#FF5C635C</color>
+    <color name="paper">#FFF3F0E8</color>
+    <color name="paper_raised">#FFFFFCF6</color>
+    <color name="rule">#FFD8D2C4</color>
+    <color name="signal">#FF0F7A5A</color>
+    <color name="signal_pressed">#FF0B5C44</color>
+    <color name="danger">#FF8B3A2B</color>
+    <color name="on_signal">#FFFFFCF6</color>
+</resources>

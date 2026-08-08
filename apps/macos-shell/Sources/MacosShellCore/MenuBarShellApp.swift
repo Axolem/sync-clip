@@ -21,6 +21,7 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        installEditMenuForPaste()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         refreshStatusTitle()
         rebuildMenu()
@@ -147,11 +148,13 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
     @objc private func onEnterLinkKey() {
         let alert = NSAlert()
         alert.messageText = "Enter Link Key"
-        alert.informativeText = "Paste the Sync Group Link Key (base32)."
+        alert.informativeText = "Paste the Sync Group Link Key (base32). Use ⌘V."
         alert.addButton(withTitle: "Join")
         alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        let field = makePasteableField(width: 320, initial: "")
         alert.accessoryView = field
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
         let response = alert.runModal()
         guard response == .alertFirstButtonReturn else { return }
         do {
@@ -212,11 +215,13 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
             } else {
                 let paste = NSAlert()
                 paste.messageText = "Adopt Link Key"
-                paste.informativeText = "Paste the replacement Sync Group Link Key (base32)."
+                paste.informativeText = "Paste the replacement Sync Group Link Key (base32). Use ⌘V."
                 paste.addButton(withTitle: "Adopt")
                 paste.addButton(withTitle: "Cancel")
-                let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+                let field = makePasteableField(width: 320, initial: "")
                 paste.accessoryView = field
+                NSApp.activate(ignoringOtherApps: true)
+                paste.window.initialFirstResponder = field
                 guard paste.runModal() == .alertFirstButtonReturn else { return }
                 newKey = try linkKeyFromBase32(encoded: field.stringValue)
             }
@@ -243,9 +248,10 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         alert.informativeText = "WebSocket URL for the encrypted relay. Changing rejoins without a new Link Key."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        field.stringValue = currentRelayUrl()
+        let field = makePasteableField(width: 360, initial: currentRelayUrl())
         alert.accessoryView = field
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let url = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else { return }
@@ -271,9 +277,10 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         alert.informativeText = "Stored only on this Device for UI. Never sent to the Sync Group or relay."
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        field.stringValue = nicknameStore.load() ?? ""
+        let field = makePasteableField(width: 280, initial: nicknameStore.load() ?? "")
         alert.accessoryView = field
+        NSApp.activate(ignoringOtherApps: true)
+        alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         nicknameStore.save(field.stringValue)
         refreshStatusTitle()
@@ -333,6 +340,44 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message
+        NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
+    }
+
+    /// Accessory menu-bar apps need an Edit menu or ⌘V never reaches alert text fields.
+    private func installEditMenuForPaste() {
+        let mainMenu = NSMenu()
+
+        let appItem = NSMenuItem()
+        mainMenu.addItem(appItem)
+        let appMenu = NSMenu(title: "Sync Clip")
+        appMenu.addItem(withTitle: "Quit Sync Clip", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+
+        let editItem = NSMenuItem()
+        mainMenu.addItem(editItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = editMenu
+
+        NSApp.mainMenu = mainMenu
+    }
+
+    private func makePasteableField(width: CGFloat, initial: String) -> NSTextField {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: width, height: 28))
+        field.isEditable = true
+        field.isSelectable = true
+        field.isBezeled = true
+        field.bezelStyle = .squareBezel
+        field.stringValue = initial
+        field.placeholderString = "Paste with ⌘V"
+        field.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+        field.cell?.usesSingleLineMode = true
+        return field
     }
 }

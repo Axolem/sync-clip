@@ -2,7 +2,9 @@
 
 uniffi::setup_scaffolding!();
 
-use clip_engine::{AppliedClip, Device, DeviceError, LinkKey, MAX_IMAGE_BYTES};
+use clip_engine::{
+    ensure_rustls_crypto_provider, AppliedClip, Device, DeviceError, LinkKey, MAX_IMAGE_BYTES,
+};
 use data_encoding::BASE32_NOPAD;
 use rand::RngCore;
 use std::sync::Mutex;
@@ -10,8 +12,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tokio::runtime::Runtime;
 
-/// Default local relay WebSocket URL for Shell demos.
-pub const DEFAULT_RELAY_WS_URL: &str = "ws://127.0.0.1:7120/v0/ws";
+/// Default hosted relay WebSocket URL for Shells (Caddy → Sync Clip relay).
+pub const DEFAULT_RELAY_WS_URL: &str = "wss://clip.dotenv.co.za/v0/ws";
 
 /// Applied Clip surfaced to Shells over FFI.
 #[derive(Clone, Debug, Eq, PartialEq, uniffi::Record)]
@@ -148,6 +150,8 @@ impl Session {
         relay_ws_url: String,
         ephemeral_id_bytes: Vec<u8>,
     ) -> Result<std::sync::Arc<Self>, SessionError> {
+        // Before any rustls ClientConfig::builder() path can run in this staticlib.
+        ensure_rustls_crypto_provider();
         let link_key = parse_link_key(&link_key_bytes)?;
         let ephemeral = parse_ephemeral(&ephemeral_id_bytes)?;
         let runtime = Runtime::new().map_err(|e| SessionError::Other(e.to_string()))?;
