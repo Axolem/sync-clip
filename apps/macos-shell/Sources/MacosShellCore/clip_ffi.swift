@@ -523,6 +523,11 @@ public protocol SessionProtocol: AnyObject, Sendable {
     func isArmed()  -> Bool
     
     /**
+     * Sync Idle: joined Device retrying after relay drop (not Paused).
+     */
+    func isSyncIdle()  -> Bool
+    
+    /**
      * Non-blocking poll for the next applied remote Clip.
      */
     func pollApplied()  -> AppliedClipFfi?
@@ -612,6 +617,16 @@ public convenience init(linkKeyBytes: Data, relayWsUrl: String, ephemeralIdBytes
 open func isArmed() -> Bool  {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_clip_ffi_fn_method_session_is_armed(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+    /**
+     * Sync Idle: joined Device retrying after relay drop (not Paused).
+     */
+open func isSyncIdle() -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_method_session_is_sync_idle(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -806,6 +821,103 @@ public func FfiConverterTypeAppliedClipFfi_lift(_ buf: RustBuffer) throws -> App
 #endif
 public func FfiConverterTypeAppliedClipFfi_lower(_ value: AppliedClipFfi) -> RustBuffer {
     return FfiConverterTypeAppliedClipFfi.lower(value)
+}
+
+
+/**
+ * Shell Lifetime inputs for resume-on-boot / Arm / capture gates (ADR-0006).
+ */
+public struct LifetimeSnapshotFfi {
+    public var durableArmed: Bool
+    public var elevatedCaptureGranted: Bool
+    public var hasLinkKey: Bool
+    public var quitOptedOut: Bool
+    public var requiresElevatedCapture: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(durableArmed: Bool, elevatedCaptureGranted: Bool, hasLinkKey: Bool, quitOptedOut: Bool, requiresElevatedCapture: Bool) {
+        self.durableArmed = durableArmed
+        self.elevatedCaptureGranted = elevatedCaptureGranted
+        self.hasLinkKey = hasLinkKey
+        self.quitOptedOut = quitOptedOut
+        self.requiresElevatedCapture = requiresElevatedCapture
+    }
+}
+
+#if compiler(>=6)
+extension LifetimeSnapshotFfi: Sendable {}
+#endif
+
+
+extension LifetimeSnapshotFfi: Equatable, Hashable {
+    public static func ==(lhs: LifetimeSnapshotFfi, rhs: LifetimeSnapshotFfi) -> Bool {
+        if lhs.durableArmed != rhs.durableArmed {
+            return false
+        }
+        if lhs.elevatedCaptureGranted != rhs.elevatedCaptureGranted {
+            return false
+        }
+        if lhs.hasLinkKey != rhs.hasLinkKey {
+            return false
+        }
+        if lhs.quitOptedOut != rhs.quitOptedOut {
+            return false
+        }
+        if lhs.requiresElevatedCapture != rhs.requiresElevatedCapture {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(durableArmed)
+        hasher.combine(elevatedCaptureGranted)
+        hasher.combine(hasLinkKey)
+        hasher.combine(quitOptedOut)
+        hasher.combine(requiresElevatedCapture)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLifetimeSnapshotFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LifetimeSnapshotFfi {
+        return
+            try LifetimeSnapshotFfi(
+                durableArmed: FfiConverterBool.read(from: &buf), 
+                elevatedCaptureGranted: FfiConverterBool.read(from: &buf), 
+                hasLinkKey: FfiConverterBool.read(from: &buf), 
+                quitOptedOut: FfiConverterBool.read(from: &buf), 
+                requiresElevatedCapture: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LifetimeSnapshotFfi, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.durableArmed, into: &buf)
+        FfiConverterBool.write(value.elevatedCaptureGranted, into: &buf)
+        FfiConverterBool.write(value.hasLinkKey, into: &buf)
+        FfiConverterBool.write(value.quitOptedOut, into: &buf)
+        FfiConverterBool.write(value.requiresElevatedCapture, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLifetimeSnapshotFfi_lift(_ buf: RustBuffer) throws -> LifetimeSnapshotFfi {
+    return try FfiConverterTypeLifetimeSnapshotFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLifetimeSnapshotFfi_lower(_ value: LifetimeSnapshotFfi) -> RustBuffer {
+    return FfiConverterTypeLifetimeSnapshotFfi.lower(value)
 }
 
 
@@ -1026,6 +1138,42 @@ public func generateLinkKey() -> Data  {
     )
 })
 }
+public func lifetimeBootShouldForcePaused(snapshot: LifetimeSnapshotFfi) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_lifetime_boot_should_force_paused(
+        FfiConverterTypeLifetimeSnapshotFfi_lower(snapshot),$0
+    )
+})
+}
+public func lifetimeCaptureMissingShouldPersistPaused(requiresElevatedCapture: Bool, elevatedCaptureGranted: Bool) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_lifetime_capture_missing_should_persist_paused(
+        FfiConverterBool.lower(requiresElevatedCapture),
+        FfiConverterBool.lower(elevatedCaptureGranted),$0
+    )
+})
+}
+public func lifetimeMayAutoStart(snapshot: LifetimeSnapshotFfi) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_lifetime_may_auto_start(
+        FfiConverterTypeLifetimeSnapshotFfi_lower(snapshot),$0
+    )
+})
+}
+public func lifetimeMayEnterArmed(snapshot: LifetimeSnapshotFfi) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_lifetime_may_enter_armed(
+        FfiConverterTypeLifetimeSnapshotFfi_lower(snapshot),$0
+    )
+})
+}
+public func lifetimeShouldKeepLifetime(hasLinkKey: Bool) -> Bool  {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_clip_ffi_fn_func_lifetime_should_keep_lifetime(
+        FfiConverterBool.lower(hasLinkKey),$0
+    )
+})
+}
 /**
  * Decode an unpadded base32 Link Key into raw bytes.
  */
@@ -1080,6 +1228,21 @@ private let initializationResult: InitializationResult = {
     if (uniffi_clip_ffi_checksum_func_generate_link_key() != 23180) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_clip_ffi_checksum_func_lifetime_boot_should_force_paused() != 22431) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_func_lifetime_capture_missing_should_persist_paused() != 64606) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_func_lifetime_may_auto_start() != 48156) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_func_lifetime_may_enter_armed() != 64345) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_func_lifetime_should_keep_lifetime() != 60658) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_clip_ffi_checksum_func_link_key_from_base32() != 51907) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1090,6 +1253,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_clip_ffi_checksum_method_session_is_armed() != 23434) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_clip_ffi_checksum_method_session_is_sync_idle() != 7028) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_clip_ffi_checksum_method_session_poll_applied() != 63830) {

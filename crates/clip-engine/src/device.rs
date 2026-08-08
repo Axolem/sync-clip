@@ -5,7 +5,9 @@ use crate::envelope::{ClipImage, Envelope, LinkKey, SealedEnvelope, TextClip};
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once};
+use std::time::Duration;
 use thiserror::Error;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -16,6 +18,9 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 static INSTALL_RUSTLS_PROVIDER: Once = Once::new();
+
+const RECONNECT_BASE: Duration = Duration::from_millis(100);
+const RECONNECT_MAX: Duration = Duration::from_secs(5);
 
 /// Install the `ring` CryptoProvider as the process default (idempotent).
 ///
@@ -78,6 +83,7 @@ pub struct Device {
     armed: bool,
     cmd_tx: mpsc::UnboundedSender<DeviceCommand>,
     sender_ephemeral_id: [u8; 16],
+    sync_idle: Arc<AtomicBool>,
 }
 
 enum DeviceCommand {
@@ -94,7 +100,7 @@ enum DeviceCommand {
 
 impl Device {
     /// Join a Sync Group: derive channel, connect to relay, subscribe.
-    /// Starts Armed by default.
+    /// Starts Armed by default. On later disconnect, enters Sync Idle and retries.
     pub async fn join(
         link_key: LinkKey,
         relay_url: impl Into<String>,
@@ -102,29 +108,25 @@ impl Device {
     ) -> Result<Self, DeviceError> {
         let relay_url = relay_url.into();
         let channel_hex = channel_id_hex(&link_key);
-        let connector = rustls_webpki_connector()?;
-        let (ws, _) = connect_async_tls_with_config(
-            relay_url.as_str(),
-            None,
-            false,
-            Some(connector),
-        )
-        .await
-        .map_err(|e| DeviceError::WebSocket(e.to_string()))?;
+        let ws = connect_ws(&relay_url).await?;
 
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (applied_tx, applied_rx) = mpsc::unbounded_channel();
+        let sync_idle = Arc::new(AtomicBool::new(false));
 
         let runtime_key = link_key;
         let runtime_sender = sender_ephemeral_id;
+        let runtime_idle = sync_idle.clone();
         tokio::spawn(async move {
-            device_runtime(
-                ws,
+            device_runtime_loop(
+                Some(ws),
+                relay_url,
                 channel_hex,
                 runtime_key,
                 runtime_sender,
                 cmd_rx,
                 applied_tx,
+                runtime_idle,
             )
             .await;
         });
@@ -134,7 +136,13 @@ impl Device {
             armed: true,
             cmd_tx,
             sender_ephemeral_id,
+            sync_idle,
         })
+    }
+
+    /// Sync Idle: Shell Lifetime up but relay session unavailable (retrying).
+    pub fn is_sync_idle(&self) -> bool {
+        self.sync_idle.load(Ordering::SeqCst)
     }
 
     /// Set Armed/Paused. Waits until the Device runtime acknowledges.
@@ -284,21 +292,30 @@ struct RuntimeState {
     sender_ephemeral_id: [u8; 16],
 }
 
-async fn device_runtime(
-    mut ws: Ws,
+async fn connect_ws(relay_url: &str) -> Result<Ws, DeviceError> {
+    let connector = rustls_webpki_connector()?;
+    let (ws, _) = connect_async_tls_with_config(relay_url, None, false, Some(connector))
+        .await
+        .map_err(|e| DeviceError::WebSocket(e.to_string()))?;
+    Ok(ws)
+}
+
+enum SessionEnd {
+    Disconnected,
+    Shutdown,
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn device_runtime_loop(
+    mut initial_ws: Option<Ws>,
+    relay_url: String,
     channel_hex: String,
     link_key: LinkKey,
     sender_ephemeral_id: [u8; 16],
     mut cmd_rx: mpsc::UnboundedReceiver<DeviceCommand>,
     applied_tx: mpsc::UnboundedSender<AppliedClip>,
+    sync_idle: Arc<AtomicBool>,
 ) {
-    let subscribe = ClientMsg::Subscribe {
-        channel_id: channel_hex.clone(),
-    };
-    if send_json(&mut ws, &subscribe).await.is_err() {
-        return;
-    }
-
     let mut state = RuntimeState {
         armed: true,
         last_applied: None,
@@ -306,18 +323,105 @@ async fn device_runtime(
         link_key,
         sender_ephemeral_id,
     };
+    let mut backoff = RECONNECT_BASE;
 
+    loop {
+        let mut ws = match initial_ws.take() {
+            Some(ws) => {
+                sync_idle.store(false, Ordering::SeqCst);
+                ws
+            }
+            None => {
+                sync_idle.store(true, Ordering::SeqCst);
+                match reconnect_until_connected(
+                    &relay_url,
+                    &mut cmd_rx,
+                    &mut state,
+                    &mut backoff,
+                )
+                .await
+                {
+                    None => return,
+                    Some(ws) => {
+                        sync_idle.store(false, Ordering::SeqCst);
+                        backoff = RECONNECT_BASE;
+                        ws
+                    }
+                }
+            }
+        };
+
+        let subscribe = ClientMsg::Subscribe {
+            channel_id: channel_hex.clone(),
+        };
+        if send_json(&mut ws, &subscribe).await.is_err() {
+            continue;
+        }
+
+        match run_connected_session(&mut ws, &channel_hex, &mut state, &mut cmd_rx, &applied_tx)
+            .await
+        {
+            SessionEnd::Shutdown => return,
+            SessionEnd::Disconnected => {
+                sync_idle.store(true, Ordering::SeqCst);
+            }
+        }
+    }
+}
+
+/// Process commands while Sync Idle until a reconnect succeeds, or Shutdown.
+async fn reconnect_until_connected(
+    relay_url: &str,
+    cmd_rx: &mut mpsc::UnboundedReceiver<DeviceCommand>,
+    state: &mut RuntimeState,
+    backoff: &mut Duration,
+) -> Option<Ws> {
     loop {
         tokio::select! {
             cmd = cmd_rx.recv() => {
                 match cmd {
-                    None | Some(DeviceCommand::Shutdown) => break,
+                    None | Some(DeviceCommand::Shutdown) => return None,
+                    Some(DeviceCommand::SetArmed { armed, reply }) => {
+                        state.armed = armed;
+                        let _ = reply.send(());
+                    }
+                    Some(DeviceCommand::Publish { reply, .. }) => {
+                        let _ = reply.send(Err(DeviceError::WebSocket(
+                            "sync idle: reconnecting".into(),
+                        )));
+                    }
+                }
+            }
+            _ = tokio::time::sleep(*backoff) => {
+                match connect_ws(relay_url).await {
+                    Ok(ws) => return Some(ws),
+                    Err(_) => {
+                        *backoff = (*backoff * 2).min(RECONNECT_MAX);
+                    }
+                }
+            }
+        }
+    }
+}
+
+async fn run_connected_session(
+    ws: &mut Ws,
+    channel_hex: &str,
+    state: &mut RuntimeState,
+    cmd_rx: &mut mpsc::UnboundedReceiver<DeviceCommand>,
+    applied_tx: &mpsc::UnboundedSender<AppliedClip>,
+) -> SessionEnd {
+    loop {
+        tokio::select! {
+            cmd = cmd_rx.recv() => {
+                match cmd {
+                    None | Some(DeviceCommand::Shutdown) => return SessionEnd::Shutdown,
                     Some(DeviceCommand::SetArmed { armed, reply }) => {
                         state.armed = armed;
                         let _ = reply.send(());
                     }
                     Some(DeviceCommand::Publish { clip, reply }) => {
-                        let result = handle_publish(&mut ws, &mut state, &channel_hex, clip).await;
+                        let result = handle_publish(ws, state, channel_hex, clip).await;
                         let _ = reply.send(result);
                     }
                 }
@@ -325,14 +429,14 @@ async fn device_runtime(
             msg = ws.next() => {
                 match msg {
                     Some(Ok(Message::Text(text))) => {
-                        handle_server_text(&text, &mut state, &applied_tx);
+                        handle_server_text(&text, state, applied_tx);
                     }
                     Some(Ok(Message::Ping(p))) => {
                         let _ = ws.send(Message::Pong(p)).await;
                     }
-                    Some(Ok(Message::Close(_))) | None => break,
+                    Some(Ok(Message::Close(_))) | None => return SessionEnd::Disconnected,
                     Some(Ok(_)) => {}
-                    Some(Err(_)) => break,
+                    Some(Err(_)) => return SessionEnd::Disconnected,
                 }
             }
         }

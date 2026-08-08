@@ -18,6 +18,48 @@ final class PasteboardEchoGuardTests: XCTestCase {
     }
 }
 
+final class ArmedStateStoreTests: XCTestCase {
+    func testArmedAndQuitOptOutRoundTrip() {
+        let suite = "com.syncclip.test.armed.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsArmedStateStore(
+            defaults: defaults,
+            armedKey: "armed",
+            quitKey: "quit"
+        )
+        XCTAssertTrue(store.isArmed)
+        store.isArmed = false
+        XCTAssertFalse(store.isArmed)
+        store.quitOptedOut = true
+        XCTAssertTrue(store.quitOptedOut)
+        store.clearQuitOptOut()
+        XCTAssertFalse(store.quitOptedOut)
+    }
+
+    func testLifetimePolicyAutoStartViaFfi() {
+        let snap = LifetimeSnapshotFfi(
+            durableArmed: true,
+            elevatedCaptureGranted: true,
+            hasLinkKey: true,
+            quitOptedOut: false,
+            requiresElevatedCapture: false
+        )
+        XCTAssertTrue(lifetimeMayAutoStart(snapshot: snap))
+        XCTAssertFalse(
+            lifetimeMayAutoStart(
+                snapshot: LifetimeSnapshotFfi(
+                    durableArmed: true,
+                    elevatedCaptureGranted: true,
+                    hasLinkKey: true,
+                    quitOptedOut: true,
+                    requiresElevatedCapture: false
+                )
+            )
+        )
+    }
+}
+
 final class InMemoryLinkKeyStoreTests: XCTestCase {
     func testRoundTripCredentials() throws {
         let store = InMemoryLinkKeyStore()

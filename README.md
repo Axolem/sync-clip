@@ -131,8 +131,12 @@ cd apps/android-shell
 4. Copy plain text or an in-cap image (~5 MiB encoded max) on one Device; paste on the other.
    - Text + oversized image → text syncs; image is omitted.
 
-Pause on either Shell stops publish and accept; Arm resumes. Unreachable relays fail soft (Armed stays on; sync idle). Remote clipboard writes are echo-suppressed (Engine + Shell ignore flags). Link Key rotation replaces the Sync Group credential on that Device; Devices still on the old key no longer exchange Clips with rotators. Local Nickname is UI-only and never enters Clip plaintext or the relay.
+Pause on either Shell stops publish and accept but **keeps Shell Lifetime** (relay stay joined; Android FGS stays up). Quit on macOS ends the process and opts out of login auto-start until you open the Shell again. Unreachable relays are **Sync Idle** (Armed stays on; reconnect retries). Boot/login auto-start runs when a Link Key is saved and the Device was last Armed.
+
+**Android Elevated Clipboard Capture:** enable the Sync Clip Accessibility service before Arming (sideload/APK builds). Without it, Arm is blocked and revoke persists Paused.
+
+Remote clipboard writes are echo-suppressed (Engine + Shell ignore flags). Link Key rotation replaces the Sync Group credential on that Device; Devices still on the old key no longer exchange Clips with rotators. Local Nickname is UI-only and never enters Clip plaintext or the relay.
 
 ## Vocabulary
 
-Use **Clip Engine**, **Shell**, **Sync Group**, **Link Key**, **Armed** / **Paused** as defined in [CONTEXT.md](CONTEXT.md). Avoid synonyms such as “core library”, “client”, “room”, or “pairing code”.
+Use **Clip Engine**, **Shell**, **Shell Lifetime**, **Sync Group**, **Link Key**, **Armed** / **Paused**, **Sync Idle**, **Elevated Clipboard Capture** as defined in [CONTEXT.md](CONTEXT.md). See [ADR-0006](docs/adr/0006-shell-lifetime-and-elevated-capture.md).

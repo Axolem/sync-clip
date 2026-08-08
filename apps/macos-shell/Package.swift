@@ -24,6 +24,7 @@ let package = Package(
                 .linkedLibrary("resolv"),
                 .linkedFramework("AppKit"),
                 .linkedFramework("Security"),
+                .linkedFramework("ServiceManagement"),
                 .linkedFramework("SystemConfiguration"),
                 .unsafeFlags([
                     "-L",

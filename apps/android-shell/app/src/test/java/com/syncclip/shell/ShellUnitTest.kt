@@ -36,6 +36,51 @@ class ArmedStatePreferencesTest {
     }
 }
 
+/** Mirrors ADR-0006 lifetime rules for JVM tests without loading native FFI. */
+class ShellLifetimePolicyMirrorTest {
+    @Test
+    fun autoStartRequiresLinkKeyArmedAndNotQuit() {
+        assertTrue(mayAutoStart(hasLinkKey = true, durableArmed = true, quitOptedOut = false))
+        assertFalse(mayAutoStart(hasLinkKey = false, durableArmed = true, quitOptedOut = false))
+        assertFalse(mayAutoStart(hasLinkKey = true, durableArmed = false, quitOptedOut = false))
+        assertFalse(mayAutoStart(hasLinkKey = true, durableArmed = true, quitOptedOut = true))
+    }
+
+    @Test
+    fun armRequiresElevatedCaptureOnAndroid() {
+        assertFalse(
+            mayEnterArmed(
+                hasLinkKey = true,
+                elevatedCaptureGranted = false,
+                requiresElevatedCapture = true,
+            ),
+        )
+        assertTrue(
+            mayEnterArmed(
+                hasLinkKey = true,
+                elevatedCaptureGranted = true,
+                requiresElevatedCapture = true,
+            ),
+        )
+    }
+
+    private fun mayAutoStart(
+        hasLinkKey: Boolean,
+        durableArmed: Boolean,
+        quitOptedOut: Boolean,
+    ): Boolean = hasLinkKey && durableArmed && !quitOptedOut
+
+    private fun mayEnterArmed(
+        hasLinkKey: Boolean,
+        elevatedCaptureGranted: Boolean,
+        requiresElevatedCapture: Boolean,
+    ): Boolean {
+        if (!hasLinkKey) return false
+        if (requiresElevatedCapture && !elevatedCaptureGranted) return false
+        return true
+    }
+}
+
 class InMemoryRelayUrlStoreTest {
     @Test
     fun relayUrlPersistsAcrossSaveLoad() {

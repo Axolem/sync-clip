@@ -4,17 +4,20 @@ import Foundation
 /// Menu bar Shell for Sync Clip (accessory / no Dock icon).
 @MainActor
 public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
+    private let armedStore: ArmedStateStoring
     private let clipboard = ClipboardSyncController()
-    private var isArmed = true
     private let nicknameStore: LocalNicknameStoring
+    private var statusPollTimer: Timer?
     private let store: LinkKeyStoring
     private var statusItem: NSStatusItem?
     private var syncIdleReason: String?
 
     public init(
         store: LinkKeyStoring = KeychainLinkKeyStore(),
-        nicknameStore: LocalNicknameStoring = UserDefaultsLocalNicknameStore()
+        nicknameStore: LocalNicknameStoring = UserDefaultsLocalNicknameStore(),
+        armedStore: ArmedStateStoring = UserDefaultsArmedStateStore()
     ) {
+        self.armedStore = armedStore
         self.nicknameStore = nicknameStore
         self.store = store
     }
@@ -22,13 +25,22 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
     public func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         installEditMenuForPaste()
+        // Opening the Shell clears Quit opt-out so the next reboot can auto-start again.
+        armedStore.clearQuitOptOut()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         refreshStatusTitle()
         rebuildMenu()
         bootstrapSession()
+        syncLoginItemRegistration()
+        startStatusPoll()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        // Any intentional process exit opts out of the next login auto-start (ADR-0006).
+        armedStore.quitOptedOut = true
+        LoginItemController.syncLoginItem(shouldEnable: false)
+        statusPollTimer?.invalidate()
+        statusPollTimer = nil
         clipboard.detach()
     }
 
@@ -36,10 +48,40 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         do {
             if let credentials = try store.load() {
                 try join(credentials: credentials)
+            } else {
+                syncLoginItemRegistration()
             }
         } catch {
             syncIdleReason = "Could not restore session: \(error)"
             NSLog("sync-clip: failed to restore Link Key (soft): \(error)")
+            scheduleJoinRetry()
+            refreshStatusTitle()
+            rebuildMenu()
+        }
+    }
+
+    private func startStatusPoll() {
+        statusPollTimer?.invalidate()
+        statusPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.pollSyncIdleFromSession()
+            }
+        }
+        if let statusPollTimer {
+            RunLoop.main.add(statusPollTimer, forMode: .common)
+        }
+    }
+
+    private func pollSyncIdleFromSession() {
+        guard clipboard.hasSession else { return }
+        if clipboard.isSyncIdle {
+            if syncIdleReason == nil {
+                syncIdleReason = "reconnecting to relay"
+                refreshStatusTitle()
+                rebuildMenu()
+            }
+        } else if syncIdleReason == "reconnecting to relay" {
+            syncIdleReason = nil
             refreshStatusTitle()
             rebuildMenu()
         }
@@ -96,12 +138,13 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
             keyEquivalent: ""
         ))
         menu.addItem(.separator())
+        let armed = armedStore.isArmed
         let armedItem = NSMenuItem(
-            title: isArmed ? "Armed" : "Paused",
+            title: armed ? "Armed" : "Paused",
             action: #selector(onToggleArmed),
             keyEquivalent: ""
         )
-        armedItem.state = isArmed ? .on : .off
+        armedItem.state = armed ? .on : .off
         menu.addItem(armedItem)
         if let syncIdleReason {
             let idle = NSMenuItem(
@@ -135,7 +178,9 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         )
         do {
             try store.save(credentials)
+            armedStore.isArmed = true
             try join(credentials: credentials)
+            syncLoginItemRegistration()
             presentAlert(
                 title: "Link Key generated",
                 message: linkKeyToBase32(key: linkKey)
@@ -174,7 +219,9 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
                 relayWsUrl: relay
             )
             try store.save(credentials)
+            armedStore.isArmed = true
             try join(credentials: credentials)
+            syncLoginItemRegistration()
         } catch {
             softFailJoin(error: error)
         }
@@ -232,7 +279,9 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
                 relayWsUrl: relay
             )
             try store.save(credentials)
+            armedStore.isArmed = true
             try join(credentials: credentials)
+            syncLoginItemRegistration()
             presentAlert(
                 title: "Link Key rotated",
                 message: linkKeyToBase32(key: newKey)
@@ -294,8 +343,9 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func onToggleArmed() {
-        isArmed.toggle()
-        clipboard.setArmed(isArmed)
+        armedStore.isArmed.toggle()
+        clipboard.setArmed(armedStore.isArmed)
+        syncLoginItemRegistration()
         rebuildMenu()
     }
 
@@ -310,6 +360,22 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         return defaultRelayWsUrl()
     }
 
+    private func lifetimeSnapshot(hasLinkKey: Bool) -> LifetimeSnapshotFfi {
+        LifetimeSnapshotFfi(
+            durableArmed: armedStore.isArmed,
+            elevatedCaptureGranted: true,
+            hasLinkKey: hasLinkKey,
+            quitOptedOut: armedStore.quitOptedOut,
+            requiresElevatedCapture: false
+        )
+    }
+
+    private func syncLoginItemRegistration() {
+        let hasKey = (try? store.load()) != nil
+        let should = lifetimeMayAutoStart(snapshot: lifetimeSnapshot(hasLinkKey: hasKey))
+        LoginItemController.syncLoginItem(shouldEnable: should)
+    }
+
     private func join(credentials: ShellCredentials) throws {
         guard credentials.linkKey.count == 32 else {
             throw SessionError.InvalidLinkKey
@@ -320,7 +386,7 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
             relayWsUrl: credentials.relayWsUrl,
             ephemeralIdBytes: credentials.ephemeralId
         )
-        session.setArmed(armed: isArmed)
+        session.setArmed(armed: armedStore.isArmed)
         clipboard.attach(session: session)
         syncIdleReason = nil
         refreshStatusTitle()
@@ -331,9 +397,27 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         clipboard.detach()
         syncIdleReason = "\(error)"
         NSLog("sync-clip: join/publish soft-fail: \(error)")
+        scheduleJoinRetry()
         refreshStatusTitle()
         rebuildMenu()
         presentAlert(title: "Sync idle", message: "Staying Armed locally. \(error)")
+    }
+
+    private func scheduleJoinRetry() {
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard syncIdleReason != nil else { return }
+            guard let credentials = try? store.load() else { return }
+            do {
+                try join(credentials: credentials)
+                syncLoginItemRegistration()
+            } catch {
+                syncIdleReason = "\(error)"
+                scheduleJoinRetry()
+                refreshStatusTitle()
+                rebuildMenu()
+            }
+        }
     }
 
     private func presentAlert(title: String, message: String) {

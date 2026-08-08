@@ -6,12 +6,17 @@
 mod crypto;
 mod device;
 mod envelope;
+mod lifetime;
 
 pub use crypto::{channel_id_hex, derive_aead_key, derive_channel_id};
 pub use device::{
     ensure_rustls_crypto_provider, AppliedClip, ClipId, Device, DeviceError, MAX_IMAGE_BYTES,
 };
 pub use envelope::{ClipImage, Envelope, EnvelopeError, LinkKey, SealedEnvelope, TextClip};
+pub use lifetime::{
+    boot_should_force_paused, capture_missing_should_persist_paused, may_auto_start,
+    may_enter_armed, should_keep_lifetime, LifetimeSnapshot,
+};
 
 /// Semantic version of the Clip Engine library crate.
 pub fn version() -> &'static str {

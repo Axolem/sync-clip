@@ -15,17 +15,23 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import uniffi.clip_ffi.AppliedClipFfi
+import uniffi.clip_ffi.LifetimeSnapshotFfi
 import uniffi.clip_ffi.Session
+import uniffi.clip_ffi.lifetimeCaptureMissingShouldPersistPaused
+import uniffi.clip_ffi.lifetimeMayEnterArmed
+import uniffi.clip_ffi.lifetimeShouldKeepLifetime
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Foreground service that keeps clipboard sync alive while Armed.
+ * Foreground service that owns Shell Lifetime while a Link Key is saved (ADR-0006).
+ * Pause keeps the service + relay session; only publish/accept stop.
  */
 class ClipboardSyncService : Service() {
     private val echoGuard = ClipboardEchoGuard()
@@ -40,8 +46,10 @@ class ClipboardSyncService : Service() {
         object : Runnable {
             override fun run() {
                 if (!running.get()) return
+                enforceCaptureGate()
                 pollLocalClipboard()
                 pollRemoteApplied()
+                refreshNotificationIfNeeded()
                 handler.postDelayed(this, POLL_MS)
             }
         }
@@ -59,16 +67,20 @@ class ClipboardSyncService : Service() {
     ): Int {
         when (intent?.action) {
             ACTION_PAUSE -> {
-                pauseAndStop()
+                pauseKeepLifetime()
+                return START_STICKY
+            }
+            ACTION_STOP_LIFETIME -> {
+                stopLifetime()
                 return START_NOT_STICKY
             }
-            ACTION_ARM, null -> {
-                startArmed()
+            ACTION_ARM, ACTION_LIFETIME, null -> {
+                startLifetime(armDesired = intent?.action != ACTION_LIFETIME)
             }
             ACTION_REJOIN -> {
                 session?.close()
                 session = null
-                startArmed()
+                startLifetime(armDesired = store.isArmed())
             }
         }
         return START_STICKY
@@ -83,34 +95,65 @@ class ClipboardSyncService : Service() {
         super.onDestroy()
     }
 
-    private fun startArmed() {
+    private fun startLifetime(armDesired: Boolean) {
         val credentials = store.load()
-        if (credentials == null) {
-            stopSelf()
+        if (credentials == null || !lifetimeShouldKeepLifetime(true)) {
+            stopLifetime()
             return
         }
-        store.setArmed(true)
+        if (armDesired) {
+            tryArm()
+        } else {
+            store.setArmed(false)
+        }
         ensureSession(credentials)
-        session?.setArmed(true)
-        val notification = buildNotification()
-        val fgsType =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            } else {
-                0
-            }
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            fgsType,
-        )
+        session?.setArmed(store.isArmed())
+        promoteForeground()
         startSyncLoop()
     }
 
-    private fun pauseAndStop() {
+    private fun tryArm(): Boolean {
+        val snapshot =
+            LifetimeSnapshotFfi(
+                durableArmed = true,
+                elevatedCaptureGranted = ElevatedClipboardCapture.isGranted(this),
+                hasLinkKey = store.load() != null,
+                quitOptedOut = false,
+                requiresElevatedCapture = true,
+            )
+        if (!lifetimeMayEnterArmed(snapshot)) {
+            store.setArmed(false)
+            softFailReason = "Elevated Clipboard Capture required — enable Accessibility for Sync Clip"
+            return false
+        }
+        store.setArmed(true)
+        softFailReason = null
+        return true
+    }
+
+    private fun enforceCaptureGate() {
+        if (!store.isArmed()) return
+        if (!lifetimeCaptureMissingShouldPersistPaused(
+                true,
+                ElevatedClipboardCapture.isGranted(this),
+            )
+        ) {
+            return
+        }
         store.setArmed(false)
         session?.setArmed(false)
+        softFailReason = "Elevated Clipboard Capture revoked — Device Paused"
+    }
+
+    private fun pauseKeepLifetime() {
+        store.setArmed(false)
+        session?.setArmed(false)
+        softFailReason = null
+        promoteForeground()
+    }
+
+    private fun stopLifetime() {
+        store.setArmed(false)
         stopSyncLoop()
         session?.close()
         session = null
@@ -119,8 +162,7 @@ class ClipboardSyncService : Service() {
     }
 
     private fun ensureSession(credentials: ShellCredentials) {
-        session?.close()
-        session = null
+        if (session != null) return
         try {
             session =
                 Session(
@@ -128,11 +170,18 @@ class ClipboardSyncService : Service() {
                     relayWsUrl = credentials.relayWsUrl,
                     ephemeralIdBytes = credentials.ephemeralId,
                 )
-            softFailReason = null
+            softFailReason = softFailReason?.takeIf { it.contains("Capture") }
         } catch (e: Exception) {
-            // Soft fail: stay Armed (notification) but sync idle without crashing.
             session = null
             softFailReason = e.message ?: "join failed"
+            handler.postDelayed({
+                val creds = store.load() ?: return@postDelayed
+                session?.close()
+                session = null
+                ensureSession(creds)
+                session?.setArmed(store.isArmed())
+                promoteForeground()
+            }, REJOIN_MS)
         }
     }
 
@@ -152,7 +201,14 @@ class ClipboardSyncService : Service() {
         val active = session ?: return
         if (!active.isArmed()) return
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val snapshot = readLocalSnapshot(clipboard)
+        var snapshot = readLocalSnapshot(clipboard)
+        // Prefer Elevated Clipboard Capture bus when the OS withholds focus clipboard.
+        if (snapshot.isEmpty()) {
+            val captured = ClipboardCaptureService.consumeLatest()
+            if (captured != null && !captured.text.isNullOrEmpty()) {
+                snapshot = LocalClipboardSnapshot(text = captured.text)
+            }
+        }
         val fp = fingerprint(snapshot)
         if (fp == lastFingerprint) return
         lastFingerprint = fp
@@ -168,7 +224,7 @@ class ClipboardSyncService : Service() {
                 active.publishText(text)
             }
         } catch (_: Exception) {
-            // Paused or transient relay errors are ignored for the poll loop.
+            // Paused or Sync Idle publish errors are ignored for the poll loop.
         }
     }
 
@@ -178,13 +234,14 @@ class ClipboardSyncService : Service() {
         val applied = active.pollApplied() ?: return
         echoGuard.markRemoteWrite(applied.text)
         writeApplied(applied)
-        lastFingerprint = fingerprint(
-            LocalClipboardSnapshot(
-                imageBytes = applied.imageBytes,
-                imageMime = applied.imageMime,
-                text = applied.text.takeIf { it.isNotEmpty() },
-            ),
-        )
+        lastFingerprint =
+            fingerprint(
+                LocalClipboardSnapshot(
+                    imageBytes = applied.imageBytes,
+                    imageMime = applied.imageMime,
+                    text = applied.text.takeIf { it.isNotEmpty() },
+                ),
+            )
     }
 
     private fun readLocalSnapshot(clipboard: ClipboardManager): LocalClipboardSnapshot {
@@ -226,10 +283,11 @@ class ClipboardSyncService : Service() {
         val imageBytes = applied.imageBytes
         val mime = applied.imageMime ?: "image/png"
         if (imageBytes != null && imageBytes.isNotEmpty()) {
-            val uri = writeCacheImage(imageBytes, mime) ?: run {
-                clipboard.setPrimaryClip(ClipData.newPlainText("sync-clip", applied.text))
-                return
-            }
+            val uri =
+                writeCacheImage(imageBytes, mime) ?: run {
+                    clipboard.setPrimaryClip(ClipData.newPlainText("sync-clip", applied.text))
+                    return
+                }
             val clip =
                 if (applied.text.isNotEmpty()) {
                     ClipData.newUri(contentResolver, "sync-clip", uri).also {
@@ -284,6 +342,43 @@ class ClipboardSyncService : Service() {
         manager.createNotificationChannel(channel)
     }
 
+    private fun promoteForeground() {
+        val notification = buildNotification()
+        val fgsType =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            } else {
+                0
+            }
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            notification,
+            fgsType,
+        )
+    }
+
+    private var lastNotificationBody: String? = null
+
+    private fun refreshNotificationIfNeeded() {
+        val body = notificationBody()
+        if (body == lastNotificationBody) return
+        lastNotificationBody = body
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, buildNotification())
+    }
+
+    private fun notificationBody(): String {
+        val idle = session?.isSyncIdle() == true
+        return when {
+            softFailReason != null && softFailReason!!.contains("Paused") -> softFailReason!!
+            softFailReason != null -> "Sync idle: $softFailReason"
+            idle -> "Sync idle: reconnecting to relay"
+            store.isArmed() -> "Clipboard sync is active"
+            else -> "Paused — Shell Lifetime up"
+        }
+    }
+
     private fun buildNotification(): Notification {
         val open =
             PendingIntent.getActivity(
@@ -292,11 +387,15 @@ class ClipboardSyncService : Service() {
                 Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-        val body =
-            softFailReason?.let { "Sync idle: $it" } ?: "Clipboard sync is active"
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Sync Clip Armed")
-            .setContentText(body)
+            .setContentTitle(
+                if (store.isArmed()) {
+                    "Sync Clip Armed"
+                } else {
+                    "Sync Clip Paused"
+                },
+            )
+            .setContentText(notificationBody())
             .setSmallIcon(android.R.drawable.ic_menu_share)
             .setContentIntent(open)
             .setOngoing(true)
@@ -305,14 +404,22 @@ class ClipboardSyncService : Service() {
 
     companion object {
         const val ACTION_ARM = "com.syncclip.shell.action.ARM"
+        const val ACTION_LIFETIME = "com.syncclip.shell.action.LIFETIME"
         const val ACTION_PAUSE = "com.syncclip.shell.action.PAUSE"
         const val ACTION_REJOIN = "com.syncclip.shell.action.REJOIN"
+        const val ACTION_STOP_LIFETIME = "com.syncclip.shell.action.STOP_LIFETIME"
         private const val CHANNEL_ID = "sync_clip_armed"
         private const val NOTIFICATION_ID = 42
         private const val POLL_MS = 400L
+        private const val REJOIN_MS = 2_000L
 
         fun startArmed(context: Context) {
             val intent = Intent(context, ClipboardSyncService::class.java).setAction(ACTION_ARM)
+            ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun startLifetime(context: Context) {
+            val intent = Intent(context, ClipboardSyncService::class.java).setAction(ACTION_LIFETIME)
             ContextCompat.startForegroundService(context, intent)
         }
 
@@ -324,6 +431,18 @@ class ClipboardSyncService : Service() {
         fun rejoin(context: Context) {
             val intent = Intent(context, ClipboardSyncService::class.java).setAction(ACTION_REJOIN)
             ContextCompat.startForegroundService(context, intent)
+        }
+
+        fun stopLifetime(context: Context) {
+            val intent =
+                Intent(context, ClipboardSyncService::class.java).setAction(ACTION_STOP_LIFETIME)
+            context.startService(intent)
+        }
+
+        fun openCaptureSettings(context: Context) {
+            context.startActivity(
+                Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
         }
     }
 }

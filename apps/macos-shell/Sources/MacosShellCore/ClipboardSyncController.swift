@@ -38,6 +38,10 @@ public final class ClipboardSyncController {
         session?.isArmed() ?? false
     }
 
+    public var isSyncIdle: Bool {
+        session?.isSyncIdle() ?? false
+    }
+
     public var hasSession: Bool {
         session != nil
     }

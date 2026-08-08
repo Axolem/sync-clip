@@ -16,9 +16,12 @@ import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
+import uniffi.clip_ffi.LifetimeSnapshotFfi
 import uniffi.clip_ffi.defaultRelayWsUrl
 import uniffi.clip_ffi.generateEphemeralId
 import uniffi.clip_ffi.generateLinkKey
+import uniffi.clip_ffi.lifetimeMayEnterArmed
+import uniffi.clip_ffi.lifetimeShouldKeepLifetime
 import uniffi.clip_ffi.linkKeyFromBase32
 import uniffi.clip_ffi.linkKeyToBase32
 
@@ -139,6 +142,7 @@ class MainActivity : AppCompatActivity() {
                 )
             store.save(credentials)
             statusView.text = "${titleLabel()} — joined Sync Group"
+            requestBatteryExemptionIfNeeded()
             syncServiceWithArmedState()
             Toast.makeText(this, "Joined Sync Group", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
@@ -185,15 +189,45 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onArmedChanged(armed: Boolean) {
+        if (armed) {
+            val snapshot =
+                LifetimeSnapshotFfi(
+                    durableArmed = true,
+                    elevatedCaptureGranted = ElevatedClipboardCapture.isGranted(this),
+                    hasLinkKey = store.load() != null,
+                    quitOptedOut = false,
+                    requiresElevatedCapture = true,
+                )
+            if (!lifetimeMayEnterArmed(snapshot)) {
+                armedSwitch.isChecked = false
+                store.setArmed(false)
+                statusView.text =
+                    "${titleLabel()} — enable Elevated Clipboard Capture (Accessibility) to Arm"
+                Toast.makeText(
+                    this,
+                    "Enable Sync Clip in Accessibility settings to Arm",
+                    Toast.LENGTH_LONG,
+                ).show()
+                ClipboardSyncService.openCaptureSettings(this)
+                syncServiceWithArmedState()
+                return
+            }
+        }
         store.setArmed(armed)
         syncServiceWithArmedState()
     }
 
     private fun syncServiceWithArmedState() {
-        if (store.load() == null) return
+        val credentials = store.load()
+        if (credentials == null || !lifetimeShouldKeepLifetime(true)) {
+            ClipboardSyncService.stopLifetime(this)
+            return
+        }
         if (store.isArmed()) {
             ClipboardSyncService.rejoin(this)
         } else {
+            // Keep Shell Lifetime up while Paused (ADR-0006).
+            ClipboardSyncService.startLifetime(this)
             ClipboardSyncService.pause(this)
         }
     }
@@ -210,5 +244,21 @@ class MainActivity : AppCompatActivity() {
             arrayOf(Manifest.permission.POST_NOTIFICATIONS),
             1001,
         )
+    }
+
+    private fun requestBatteryExemptionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val pm = getSystemService(POWER_SERVICE) as android.os.PowerManager
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        try {
+            startActivity(
+                android.content.Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:$packageName"),
+                ),
+            )
+        } catch (_: Exception) {
+            // Best-effort; user can still Arm without the exemption.
+        }
     }
 }

@@ -40,6 +40,7 @@ impl Default for RelayConfig {
 /// Handle to a running relay (for tests and shutdown).
 #[derive(Clone)]
 pub struct RelayHandle {
+    abort: tokio::task::AbortHandle,
     pub buffer: ChannelBuffer,
     connections: Arc<AtomicUsize>,
     pub local_addr: SocketAddr,
@@ -57,6 +58,8 @@ impl RelayHandle {
 
     pub fn shutdown(&self) {
         self.shutdown.notify_waiters();
+        // Abort the serve task so open WebSockets drop immediately (Sync Idle tests / restarts).
+        self.abort.abort();
     }
 }
 
@@ -64,6 +67,7 @@ impl RelayHandle {
 struct AppState {
     buffer: ChannelBuffer,
     connections: Arc<AtomicUsize>,
+    shutdown: Arc<tokio::sync::Notify>,
 }
 
 /// Decrements the live connection counter when a WebSocket task ends.
@@ -85,9 +89,11 @@ impl Drop for ConnectionGuard {
 pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
     let buffer = ChannelBuffer::new(config.ttl);
     let connections = Arc::new(AtomicUsize::new(0));
+    let shutdown = Arc::new(tokio::sync::Notify::new());
     let state = AppState {
         buffer: buffer.clone(),
         connections: connections.clone(),
+        shutdown: shutdown.clone(),
     };
     let app = Router::new()
         .route("/v0/ws", get(ws_handler))
@@ -95,12 +101,11 @@ pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
 
     let listener = TcpListener::bind(config.bind).await?;
     let local_addr = listener.local_addr()?;
-    let shutdown = Arc::new(tokio::sync::Notify::new());
     let shutdown_wait = shutdown.clone();
     let shutdown_stats = shutdown.clone();
     let connections_stats = connections.clone();
 
-    tokio::spawn(async move {
+    let serve = tokio::spawn(async move {
         axum::serve(listener, app)
             .with_graceful_shutdown(async move {
                 shutdown_wait.notified().await;
@@ -108,6 +113,7 @@ pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
             .await
             .ok();
     });
+    let abort = serve.abort_handle();
 
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(CONNECTION_STATS_INTERVAL);
@@ -128,6 +134,7 @@ pub async fn start_relay(config: RelayConfig) -> std::io::Result<RelayHandle> {
     });
 
     Ok(RelayHandle {
+        abort,
         buffer,
         connections,
         local_addr,
@@ -149,9 +156,11 @@ async fn handle_socket(socket: WebSocket, state: AppState) {
     let (mut sink, mut stream) = socket.split();
     let mut subscribed: HashSet<String> = HashSet::new();
     let (fanout_tx, mut fanout_rx) = mpsc::unbounded_channel::<BufferEvent>();
+    let shutdown = state.shutdown.clone();
 
     loop {
         tokio::select! {
+            _ = shutdown.notified() => break,
             evt = fanout_rx.recv() => {
                 match evt {
                     Some(event) => {

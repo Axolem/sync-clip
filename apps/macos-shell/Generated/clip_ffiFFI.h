@@ -271,6 +271,11 @@ void*_Nonnull uniffi_clip_ffi_fn_constructor_session_new(RustBuffer link_key_byt
 int8_t uniffi_clip_ffi_fn_method_session_is_armed(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_IS_SYNC_IDLE
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_IS_SYNC_IDLE
+int8_t uniffi_clip_ffi_fn_method_session_is_sync_idle(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_POLL_APPLIED
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_METHOD_SESSION_POLL_APPLIED
 RustBuffer uniffi_clip_ffi_fn_method_session_poll_applied(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
@@ -307,6 +312,31 @@ RustBuffer uniffi_clip_ffi_fn_func_generate_ephemeral_id(RustCallStatus *_Nonnul
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_GENERATE_LINK_KEY
 RustBuffer uniffi_clip_ffi_fn_func_generate_link_key(RustCallStatus *_Nonnull out_status
     
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_BOOT_SHOULD_FORCE_PAUSED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_BOOT_SHOULD_FORCE_PAUSED
+int8_t uniffi_clip_ffi_fn_func_lifetime_boot_should_force_paused(RustBuffer snapshot, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_CAPTURE_MISSING_SHOULD_PERSIST_PAUSED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_CAPTURE_MISSING_SHOULD_PERSIST_PAUSED
+int8_t uniffi_clip_ffi_fn_func_lifetime_capture_missing_should_persist_paused(int8_t requires_elevated_capture, int8_t elevated_capture_granted, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_MAY_AUTO_START
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_MAY_AUTO_START
+int8_t uniffi_clip_ffi_fn_func_lifetime_may_auto_start(RustBuffer snapshot, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_MAY_ENTER_ARMED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_MAY_ENTER_ARMED
+int8_t uniffi_clip_ffi_fn_func_lifetime_may_enter_armed(RustBuffer snapshot, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_SHOULD_KEEP_LIFETIME
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LIFETIME_SHOULD_KEEP_LIFETIME
+int8_t uniffi_clip_ffi_fn_func_lifetime_should_keep_lifetime(int8_t has_link_key, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_FN_FUNC_LINK_KEY_FROM_BASE32
@@ -623,6 +653,36 @@ uint16_t uniffi_clip_ffi_checksum_func_generate_link_key(void
     
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_BOOT_SHOULD_FORCE_PAUSED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_BOOT_SHOULD_FORCE_PAUSED
+uint16_t uniffi_clip_ffi_checksum_func_lifetime_boot_should_force_paused(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_CAPTURE_MISSING_SHOULD_PERSIST_PAUSED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_CAPTURE_MISSING_SHOULD_PERSIST_PAUSED
+uint16_t uniffi_clip_ffi_checksum_func_lifetime_capture_missing_should_persist_paused(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_MAY_AUTO_START
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_MAY_AUTO_START
+uint16_t uniffi_clip_ffi_checksum_func_lifetime_may_auto_start(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_MAY_ENTER_ARMED
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_MAY_ENTER_ARMED
+uint16_t uniffi_clip_ffi_checksum_func_lifetime_may_enter_armed(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_SHOULD_KEEP_LIFETIME
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LIFETIME_SHOULD_KEEP_LIFETIME
+uint16_t uniffi_clip_ffi_checksum_func_lifetime_should_keep_lifetime(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LINK_KEY_FROM_BASE32
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_FUNC_LINK_KEY_FROM_BASE32
 uint16_t uniffi_clip_ffi_checksum_func_link_key_from_base32(void
@@ -644,6 +704,12 @@ uint16_t uniffi_clip_ffi_checksum_func_max_image_bytes(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_ARMED
 #define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_ARMED
 uint16_t uniffi_clip_ffi_checksum_method_session_is_armed(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_SYNC_IDLE
+#define UNIFFI_FFIDEF_UNIFFI_CLIP_FFI_CHECKSUM_METHOD_SESSION_IS_SYNC_IDLE
+uint16_t uniffi_clip_ffi_checksum_method_session_is_sync_idle(void
     
 );
 #endif

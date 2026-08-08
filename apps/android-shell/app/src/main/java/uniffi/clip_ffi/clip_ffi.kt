@@ -738,6 +738,18 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -759,6 +771,16 @@ fun uniffi_clip_ffi_checksum_func_generate_ephemeral_id(
 ): Short
 fun uniffi_clip_ffi_checksum_func_generate_link_key(
 ): Short
+fun uniffi_clip_ffi_checksum_func_lifetime_boot_should_force_paused(
+): Short
+fun uniffi_clip_ffi_checksum_func_lifetime_capture_missing_should_persist_paused(
+): Short
+fun uniffi_clip_ffi_checksum_func_lifetime_may_auto_start(
+): Short
+fun uniffi_clip_ffi_checksum_func_lifetime_may_enter_armed(
+): Short
+fun uniffi_clip_ffi_checksum_func_lifetime_should_keep_lifetime(
+): Short
 fun uniffi_clip_ffi_checksum_func_link_key_from_base32(
 ): Short
 fun uniffi_clip_ffi_checksum_func_link_key_to_base32(
@@ -766,6 +788,8 @@ fun uniffi_clip_ffi_checksum_func_link_key_to_base32(
 fun uniffi_clip_ffi_checksum_func_max_image_bytes(
 ): Short
 fun uniffi_clip_ffi_checksum_method_session_is_armed(
+): Short
+fun uniffi_clip_ffi_checksum_method_session_is_sync_idle(
 ): Short
 fun uniffi_clip_ffi_checksum_method_session_poll_applied(
 ): Short
@@ -834,6 +858,8 @@ fun uniffi_clip_ffi_fn_constructor_session_new(`linkKeyBytes`: RustBuffer.ByValu
 ): Pointer
 fun uniffi_clip_ffi_fn_method_session_is_armed(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Byte
+fun uniffi_clip_ffi_fn_method_session_is_sync_idle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun uniffi_clip_ffi_fn_method_session_poll_applied(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_clip_ffi_fn_method_session_publish_text(`ptr`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -848,6 +874,16 @@ fun uniffi_clip_ffi_fn_func_generate_ephemeral_id(uniffi_out_err: UniffiRustCall
 ): RustBuffer.ByValue
 fun uniffi_clip_ffi_fn_func_generate_link_key(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+fun uniffi_clip_ffi_fn_func_lifetime_boot_should_force_paused(`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun uniffi_clip_ffi_fn_func_lifetime_capture_missing_should_persist_paused(`requiresElevatedCapture`: Byte,`elevatedCaptureGranted`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun uniffi_clip_ffi_fn_func_lifetime_may_auto_start(`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun uniffi_clip_ffi_fn_func_lifetime_may_enter_armed(`snapshot`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+fun uniffi_clip_ffi_fn_func_lifetime_should_keep_lifetime(`hasLinkKey`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
 fun uniffi_clip_ffi_fn_func_link_key_from_base32(`encoded`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_clip_ffi_fn_func_link_key_to_base32(`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -989,6 +1025,21 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_clip_ffi_checksum_func_generate_link_key() != 23180.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_clip_ffi_checksum_func_lifetime_boot_should_force_paused() != 22431.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_func_lifetime_capture_missing_should_persist_paused() != 64606.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_func_lifetime_may_auto_start() != 48156.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_func_lifetime_may_enter_armed() != 64345.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_func_lifetime_should_keep_lifetime() != 60658.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_clip_ffi_checksum_func_link_key_from_base32() != 51907.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -999,6 +1050,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_clip_ffi_checksum_method_session_is_armed() != 23434.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_clip_ffi_checksum_method_session_is_sync_idle() != 7028.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_clip_ffi_checksum_method_session_poll_applied() != 63830.toShort()) {
@@ -1411,6 +1465,11 @@ public interface SessionInterface {
     fun `isArmed`(): kotlin.Boolean
     
     /**
+     * Sync Idle: joined Device retrying after relay drop (not Paused).
+     */
+    fun `isSyncIdle`(): kotlin.Boolean
+    
+    /**
      * Non-blocking poll for the next applied remote Clip.
      */
     fun `pollApplied`(): AppliedClipFfi?
@@ -1531,6 +1590,21 @@ open class Session: Disposable, AutoCloseable, SessionInterface
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_clip_ffi_fn_method_session_is_armed(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Sync Idle: joined Device retrying after relay drop (not Paused).
+     */override fun `isSyncIdle`(): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_method_session_is_sync_idle(
         it, _status)
 }
     }
@@ -1675,6 +1749,53 @@ public object FfiConverterTypeAppliedClipFfi: FfiConverterRustBuffer<AppliedClip
             FfiConverterOptionalByteArray.write(value.`imageBytes`, buf)
             FfiConverterOptionalString.write(value.`imageMime`, buf)
             FfiConverterString.write(value.`text`, buf)
+    }
+}
+
+
+
+/**
+ * Shell Lifetime inputs for resume-on-boot / Arm / capture gates (ADR-0006).
+ */
+data class LifetimeSnapshotFfi (
+    var `durableArmed`: kotlin.Boolean, 
+    var `elevatedCaptureGranted`: kotlin.Boolean, 
+    var `hasLinkKey`: kotlin.Boolean, 
+    var `quitOptedOut`: kotlin.Boolean, 
+    var `requiresElevatedCapture`: kotlin.Boolean
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLifetimeSnapshotFfi: FfiConverterRustBuffer<LifetimeSnapshotFfi> {
+    override fun read(buf: ByteBuffer): LifetimeSnapshotFfi {
+        return LifetimeSnapshotFfi(
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: LifetimeSnapshotFfi) = (
+            FfiConverterBoolean.allocationSize(value.`durableArmed`) +
+            FfiConverterBoolean.allocationSize(value.`elevatedCaptureGranted`) +
+            FfiConverterBoolean.allocationSize(value.`hasLinkKey`) +
+            FfiConverterBoolean.allocationSize(value.`quitOptedOut`) +
+            FfiConverterBoolean.allocationSize(value.`requiresElevatedCapture`)
+    )
+
+    override fun write(value: LifetimeSnapshotFfi, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`durableArmed`, buf)
+            FfiConverterBoolean.write(value.`elevatedCaptureGranted`, buf)
+            FfiConverterBoolean.write(value.`hasLinkKey`, buf)
+            FfiConverterBoolean.write(value.`quitOptedOut`, buf)
+            FfiConverterBoolean.write(value.`requiresElevatedCapture`, buf)
     }
 }
 
@@ -1965,6 +2086,51 @@ public object FfiConverterOptionalTypeAppliedClipFfi: FfiConverterRustBuffer<App
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_generate_link_key(
         _status)
+}
+    )
+    }
+    
+ fun `lifetimeBootShouldForcePaused`(`snapshot`: LifetimeSnapshotFfi): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_lifetime_boot_should_force_paused(
+        FfiConverterTypeLifetimeSnapshotFfi.lower(`snapshot`),_status)
+}
+    )
+    }
+    
+ fun `lifetimeCaptureMissingShouldPersistPaused`(`requiresElevatedCapture`: kotlin.Boolean, `elevatedCaptureGranted`: kotlin.Boolean): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_lifetime_capture_missing_should_persist_paused(
+        FfiConverterBoolean.lower(`requiresElevatedCapture`),FfiConverterBoolean.lower(`elevatedCaptureGranted`),_status)
+}
+    )
+    }
+    
+ fun `lifetimeMayAutoStart`(`snapshot`: LifetimeSnapshotFfi): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_lifetime_may_auto_start(
+        FfiConverterTypeLifetimeSnapshotFfi.lower(`snapshot`),_status)
+}
+    )
+    }
+    
+ fun `lifetimeMayEnterArmed`(`snapshot`: LifetimeSnapshotFfi): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_lifetime_may_enter_armed(
+        FfiConverterTypeLifetimeSnapshotFfi.lower(`snapshot`),_status)
+}
+    )
+    }
+    
+ fun `lifetimeShouldKeepLifetime`(`hasLinkKey`: kotlin.Boolean): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_clip_ffi_fn_func_lifetime_should_keep_lifetime(
+        FfiConverterBoolean.lower(`hasLinkKey`),_status)
 }
     )
     }

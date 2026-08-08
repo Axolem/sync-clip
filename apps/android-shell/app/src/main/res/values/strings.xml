@@ -13,5 +13,6 @@
     <string name="save_join">Save / Join</string>
     <string name="rotate_key">Rotate key</string>
     <string name="armed_label">Armed — sync clipboard</string>
+    <string name="capture_service_description">Elevated Clipboard Capture for Sync Clip. Required to Arm so copies sync while other apps are focused. Sideload / non-Play builds only.</string>
     <string name="status_ready">Ready</string>
 </resources>

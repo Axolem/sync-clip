@@ -319,3 +319,59 @@ async fn wire_observer_never_sees_clip_plaintext_fields() {
 
     relay.shutdown();
 }
+
+#[tokio::test]
+async fn device_reconnects_after_relay_restart_and_exchanges_clips() {
+    let first = start_test_relay().await;
+    let bind = first.local_addr;
+    let url = first.ws_url();
+    let (mut a, mut b) = join_pair(&url).await;
+
+    a.publish_text("before drop", 1_700_000_000_100)
+        .await
+        .expect("publish before");
+    let applied = next_applied_timeout(&mut b, 2_000)
+        .await
+        .expect("B applies before");
+    assert_eq!(applied.text, "before drop");
+
+    first.shutdown();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    // Wait until Sync Idle is visible (WS dropped).
+    let mut idle = false;
+    for _ in 0..40 {
+        if a.is_sync_idle() {
+            idle = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert!(idle, "Device A should enter Sync Idle after relay drop");
+
+    let _second = start_relay(RelayConfig {
+        bind,
+        ttl: Duration::from_secs(60),
+    })
+    .await
+    .expect("restart relay on same addr");
+
+    // Wait for reconnect out of Sync Idle.
+    let mut connected = false;
+    for _ in 0..80 {
+        if !a.is_sync_idle() && !b.is_sync_idle() {
+            connected = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(connected, "Devices should leave Sync Idle after relay returns");
+
+    a.publish_text("after reconnect", 1_700_000_000_200)
+        .await
+        .expect("publish after");
+    let applied2 = next_applied_timeout(&mut b, 3_000)
+        .await
+        .expect("B applies after reconnect");
+    assert_eq!(applied2.text, "after reconnect");
+}
