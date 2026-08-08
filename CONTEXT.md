@@ -25,16 +25,28 @@ The shared, platform-agnostic core that owns the Clip model, end-to-end encrypti
 _Avoid_: Copy engine, core library, SDK, backend
 
 **Shell**:
-The platform-native app that owns OS clipboard read/write, background lifetime, Link Key storage, and UI, and delegates sync behavior to the Clip Engine.
+The platform-native app that owns OS clipboard read/write, Shell Lifetime, Link Key storage, and UI, and delegates sync behavior to the Clip Engine.
 _Avoid_: Client wrapper, host app, frontend
 
+**Shell Lifetime**:
+Whether the Shell remains running on the Device so it can own clipboard access and Sync Group membership. Distinct from Armed and Paused.
+_Avoid_: Listening, always-on, background sync, connected, online
+
 **Armed**:
-Device state where local clipboard changes are published as Clips and remote Clips are written to the system clipboard.
+Device state where local clipboard changes are published as Clips and remote Clips are written to the system clipboard. Armed does not mean the Shell is running, and stopping the Shell is not the same as Pause.
 _Avoid_: Online, connected, logged in, syncing
 
 **Paused**:
-Device state where the Device stays in its Sync Group but neither publishes nor accepts Clips.
-_Avoid_: Offline, disconnected, logged out, disabled
+Device state where the Device stays in its Sync Group but neither publishes nor accepts Clips. Paused does not require ending Shell Lifetime or leaving the Sync Group.
+_Avoid_: Offline, disconnected, logged out, disabled, quit
+
+**Elevated Clipboard Capture**:
+On Android, the extra OS permission the Shell needs to observe local clipboard changes while another app is focused. Without it a Device cannot stay Armed; macOS Shells do not require this.
+_Avoid_: Accessibility service (implementation), background clipboard hack, focus-only capture
+
+**Sync Idle**:
+Armed with Shell Lifetime up, but Clips are not flowing because the relay session is unavailable. The Device stays Armed and keeps retrying; Sync Idle is not Paused.
+_Avoid_: Paused, disconnected, offline, soft-fail
 
 **Local Nickname**:
 An optional label stored only on a Device for its own UI. It is never sent to the Sync Group or relay as identity.
