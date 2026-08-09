@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Release builds: HTTPS / WSS only (hosted relay default).
+  Debug builds: cleartext allowed for local ws:// relays (e.g. 10.0.2.2, LAN).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <debug-overrides>
+        <base-config cleartextTrafficPermitted="true" />
+    </debug-overrides>
+</network-security-config>

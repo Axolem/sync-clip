@@ -34,3 +34,13 @@ captures/
 
 # Local build artifacts
 /dist/
+
+# Local signing / notarization secrets (never commit)
+/secrets/*
+!/secrets/README.md
+*.jks
+*.keystore
+AuthKey_*.p8
+*.p12
+*.cer
+*.mobileprovision

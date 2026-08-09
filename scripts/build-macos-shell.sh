@@ -10,7 +10,19 @@ source "$HOME/.cargo/env"
 
 PROFILE="${PROFILE:-release}"
 INSTALL="${INSTALL:-1}"
+OPEN_APP="${OPEN_APP:-1}"
 APP_DIR="${APP_DIR:-$HOME/Applications/SyncClip Shell.app}"
+VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
+# Build number: digits only from VERSION (0.1.0 -> 1000 via major*1e6+…) or override.
+BUILD_NUMBER="${BUILD_NUMBER:-}"
+if [[ -z "$BUILD_NUMBER" ]]; then
+  IFS='.' read -r major minor patch <<<"${VERSION%%-*}"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  BUILD_NUMBER="$((major * 1000000 + minor * 1000 + patch))"
+fi
+ICON_ICNS="${ICON_ICNS:-$ROOT/assets/macos/AppIcon.icns}"
 
 cd "$ROOT"
 
@@ -25,7 +37,6 @@ fi
 
 mkdir -p "$ROOT/apps/macos-shell/lib"
 cp "$LIB" "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
-# Bump mtime so any watcher/tooling notices the archive change.
 touch "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
 
 cd "$ROOT/apps/macos-shell"
@@ -56,33 +67,43 @@ mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 cp "$BIN" "$APP_DIR/Contents/MacOS/SyncClip Shell"
 chmod +x "$APP_DIR/Contents/MacOS/SyncClip Shell"
 
-cat > "$APP_DIR/Contents/Info.plist" <<'EOF'
+if [[ -f "$ICON_ICNS" ]]; then
+  cp "$ICON_ICNS" "$APP_DIR/Contents/Resources/AppIcon.icns"
+fi
+
+cat >"$APP_DIR/Contents/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Sync Clip</string>
 	<key>CFBundleExecutable</key>
 	<string>SyncClip Shell</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.syncclip.shell</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>SyncClip Shell</string>
+	<string>Sync Clip</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>${VERSION}</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>${BUILD_NUMBER}</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © Sync Clip</string>
 </dict>
 </plist>
 EOF
@@ -91,6 +112,8 @@ mkdir -p "$HOME/.local/bin"
 cp "$BIN" "$HOME/.local/bin/sync-clip-shell"
 chmod +x "$HOME/.local/bin/sync-clip-shell"
 
-open "$APP_DIR"
+if [[ "$OPEN_APP" == "1" ]]; then
+  open "$APP_DIR"
+fi
 echo "Installed: $APP_DIR"
 echo "CLI: $HOME/.local/bin/sync-clip-shell"

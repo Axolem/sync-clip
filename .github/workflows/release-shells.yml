@@ -1,0 +1,85 @@
+name: Release Shells
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-shells-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-apk:
+    name: Android release APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - name: Install SDK / NDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.0.12077973"
+
+      - name: Package Android Shell
+        env:
+          NDK_VERSION: "27.0.12077973"
+          SYNC_CLIP_ANDROID_KEYSTORE_BASE64: ${{ secrets.SYNC_CLIP_ANDROID_KEYSTORE_BASE64 }}
+          SYNC_CLIP_ANDROID_STORE_PASSWORD: ${{ secrets.SYNC_CLIP_ANDROID_STORE_PASSWORD }}
+          SYNC_CLIP_ANDROID_KEY_ALIAS: ${{ secrets.SYNC_CLIP_ANDROID_KEY_ALIAS }}
+          SYNC_CLIP_ANDROID_KEY_PASSWORD: ${{ secrets.SYNC_CLIP_ANDROID_KEY_PASSWORD }}
+        run: |
+          source "$HOME/.cargo/env"
+          # Optional release signing via repo secrets. Without them the APK uses the
+          # debug keystore — fine for CI artifacts, not for production sideload.
+          if [[ -n "${SYNC_CLIP_ANDROID_KEYSTORE_BASE64:-}" ]]; then
+            mkdir -p secrets
+            echo "$SYNC_CLIP_ANDROID_KEYSTORE_BASE64" | base64 -d > secrets/sync-clip-upload.jks
+            export SYNC_CLIP_ANDROID_KEYSTORE="$PWD/secrets/sync-clip-upload.jks"
+          fi
+          ./scripts/package-android-shell.sh
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-clip-shell-android
+          path: |
+            dist/sync-clip-shell-*.apk
+            dist/sync-clip-shell-*.apk.sha256
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/sync-clip-shell-*.apk
+            dist/sync-clip-shell-*.apk.sha256
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+
+  macos-dmg-placeholder:
+    name: macOS DMG (manual notarization)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reminder
+        run: |
+          cat <<'EOF'
+          macOS notarized DMG is built locally in wave 1:
+            ./scripts/package-macos-shell.sh
+          Attach dist/SyncClip-Shell-*-macos.dmg (+ .sha256) to this GitHub Release manually.
+          See docs/distribution.md
+          EOF

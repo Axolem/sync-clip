@@ -119,6 +119,29 @@ cd apps/android-shell
 
 `assembleDebug` succeeds without JNI libs (Kotlin-only packaging); clipboard sync at runtime requires `./scripts/build-android-jni.sh` first.
 
+## Distribute (GitHub Releases)
+
+Version comes from [`VERSION`](VERSION). Store listing copy and graphics live in [`assets/store/`](assets/store/). Full credentials checklist: [`docs/distribution.md`](docs/distribution.md).
+
+```bash
+# Android release APK → dist/sync-clip-shell-<ver>.apk
+./scripts/package-android-shell.sh
+# Optional Play-prep bundle:
+BUNDLE=1 ./scripts/package-android-shell.sh
+
+# macOS notarized DMG → dist/SyncClip-Shell-<ver>-macos.dmg
+# Requires SYNC_CLIP_CODESIGN_IDENTITY + notary env (see docs/distribution.md)
+./scripts/package-macos-shell.sh
+```
+
+Tag `v*` pushes build the Android APK via GitHub Actions and attach it to the Release. Upload the notarized macOS DMG from your machine in wave 1.
+
+Day-to-day local install (no DMG):
+
+```bash
+./scripts/build-macos-shell.sh   # ~/Applications/SyncClip Shell.app
+```
+
 ## Demo: macOS + Android on one Sync Group
 
 1. Relay: use the hosted default (`wss://clip.dotenv.co.za/v0/ws`), or start a local relay and set Relay URL in each Shell.
