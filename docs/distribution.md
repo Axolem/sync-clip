@@ -114,6 +114,7 @@ The multiplatform SwiftUI Shell (`apps/apple-shell`) targets iOS / iPadOS / macO
 |---|---|
 | macOS menu bar | `com.syncclip.shell` |
 | Apple multiplatform (iOS / iPadOS / macOS windowed / visionOS) | `com.syncclip.shell.apple` |
+| Windows tray | `sync-clip-shell` (executable; config under `%AppData%\SyncClip`) |
 | Android | `com.syncclip.shell` |
 
 Display name: **Sync Clip**.

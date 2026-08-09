@@ -20,6 +20,8 @@ jobs:
         run: cargo build --workspace
       - name: Test workspace
         run: cargo test --workspace
+      - name: Test Windows Shell core
+        run: cargo test -p windows-shell
 
   macos-shell:
     name: macOS Shell
@@ -55,6 +57,17 @@ jobs:
       - name: Test AppleShellCore
         working-directory: apps/apple-shell
         run: swift test
+
+  windows-shell:
+    name: Windows Shell
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Test Windows Shell core
+        run: cargo test -p windows-shell
+      - name: Build Windows Shell
+        run: cargo build -p windows-shell --release
 
   android-shell:
     name: Android Shell

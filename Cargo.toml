@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/clip-engine", "crates/clip-ffi", "crates/relay"]
+members = [
+    "apps/windows-shell",
+    "crates/clip-engine",
+    "crates/clip-ffi",
+    "crates/relay",
+]
 resolver = "2"
 
 [workspace.package]

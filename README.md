@@ -12,6 +12,7 @@ crates/clip-ffi/      # Blocking Session facade + UniFFI (Swift/Kotlin)
 crates/relay/         # Encrypted relay (WebSocket, ciphertext only)
 apps/macos-shell/     # macOS menu bar Shell (SwiftPM + UniFFI)
 apps/apple-shell/     # iOS / iPadOS / macOS windowed / visionOS Shell (SwiftUI + UniFFI)
+apps/windows-shell/   # Windows tray Shell (Rust + clip-ffi)
 apps/android-shell/   # Android Shell (Gradle / Kotlin + UniFFI)
 scripts/              # UniFFI generate + platform FFI helpers
 ```
@@ -120,6 +121,15 @@ swift test                            # AppleShellCore unit tests (macOS)
 
 See [`apps/apple-shell/README.md`](apps/apple-shell/README.md) and [ADR-0007](docs/adr/0007-apple-multiplatform-shell.md). The menu bar Shell remains the macOS path for Shell Lifetime with login-item resume.
 
+### Windows Shell
+
+```bash
+cargo test -p windows-shell
+cargo build -p windows-shell --release   # on Windows → sync-clip-shell.exe
+```
+
+Tray Shell: Generate / join Link Key (clipboard), Armed toggle, Local Nickname, Quit opt-out ([ADR-0008](docs/adr/0008-windows-shell.md)).
+
 ### Android Shell
 
 ```bash
@@ -175,4 +185,4 @@ Remote clipboard writes are echo-suppressed (Engine + Shell ignore flags). Link 
 
 ## Vocabulary
 
-Use **Clip Engine**, **Shell**, **Shell Lifetime**, **Sync Group**, **Link Key**, **Armed** / **Paused**, **Sync Idle**, **Elevated Clipboard Capture** as defined in [CONTEXT.md](CONTEXT.md). See [ADR-0006](docs/adr/0006-shell-lifetime-and-elevated-capture.md).
+Use **Clip Engine**, **Shell**, **Shell Lifetime**, **Sync Group**, **Link Key**, **Armed** / **Paused**, **Sync Idle**, **Elevated Clipboard Capture** as defined in [CONTEXT.md](CONTEXT.md). See [ADR-0006](docs/adr/0006-shell-lifetime-and-elevated-capture.md), [ADR-0007](docs/adr/0007-apple-multiplatform-shell.md), [ADR-0008](docs/adr/0008-windows-shell.md).
