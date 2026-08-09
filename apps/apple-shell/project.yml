@@ -1,0 +1,41 @@
+name: SyncClip
+options:
+  bundleIdPrefix: com.syncclip
+  deploymentTarget:
+    iOS: "16.0"
+    macOS: "13.0"
+    visionOS: "1.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1000"
+    SWIFT_VERSION: "5.9"
+packages:
+  AppleShell:
+    path: .
+targets:
+  SyncClip:
+    type: application
+    supportedDestinations: [iOS, macOS, visionOS]
+    sources:
+      - path: App
+    dependencies:
+      - package: AppleShell
+        product: AppleShellCore
+      - framework: lib/ClipFfi.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_NAME: Sync Clip
+        PRODUCT_BUNDLE_IDENTIFIER: com.syncclip.shell.apple
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Sync Clip
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © Sync Clip"
+        ENABLE_PREVIEWS: YES
+        OTHER_LDFLAGS: ["$(inherited)", "-lresolv"]
+        HEADER_SEARCH_PATHS: ["$(inherited)", "$(PROJECT_DIR)/Generated"]
+        SWIFT_INCLUDE_PATHS: ["$(inherited)", "$(PROJECT_DIR)/Generated"]
+        CODE_SIGN_STYLE: Automatic

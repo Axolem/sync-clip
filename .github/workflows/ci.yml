@@ -40,6 +40,22 @@ jobs:
         working-directory: apps/macos-shell
         run: swift test
 
+  apple-shell:
+    name: Apple Shell (core)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build clip-ffi staticlib
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build -p clip-ffi
+          mkdir -p apps/apple-shell/lib
+          cp target/debug/libclip_ffi.a apps/apple-shell/lib/libclip_ffi.a
+      - name: Test AppleShellCore
+        working-directory: apps/apple-shell
+        run: swift test
+
   android-shell:
     name: Android Shell
     runs-on: ubuntu-latest

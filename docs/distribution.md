@@ -106,6 +106,14 @@ Not packaged in this wave. Expect friction:
 
 Prefer Developer ID + notarized DMG via GitHub until MAS entitlements are designed.
 
+The multiplatform SwiftUI Shell (`apps/apple-shell`) targets iOS / iPadOS / macOS windowed / visionOS for TestFlight / App Store later; see [ADR-0007](adr/0007-apple-multiplatform-shell.md).
+
 ## Bundle identity
 
-Both Shells use `com.syncclip.shell`. Display name: **Sync Clip**.
+| Shell | Bundle / application id |
+|---|---|
+| macOS menu bar | `com.syncclip.shell` |
+| Apple multiplatform (iOS / iPadOS / macOS windowed / visionOS) | `com.syncclip.shell.apple` |
+| Android | `com.syncclip.shell` |
+
+Display name: **Sync Clip**.

@@ -37,8 +37,16 @@ EOF
 
 cp "$ROOT/target/debug/libclip_ffi.a" "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
 
+APPLE_GEN="$ROOT/apps/apple-shell/Generated"
+APPLE_CORE="$ROOT/apps/apple-shell/Sources/AppleShellCore"
+mkdir -p "$APPLE_GEN" "$APPLE_CORE" "$ROOT/apps/apple-shell/lib"
+cp "$OUT/clip_ffi.swift" "$APPLE_CORE/clip_ffi.swift"
+cp "$OUT/clip_ffiFFI.h" "$APPLE_GEN/"
+cp "$MAC_GEN/module.modulemap" "$APPLE_GEN/module.modulemap"
+cp "$ROOT/target/debug/libclip_ffi.a" "$ROOT/apps/apple-shell/lib/libclip_ffi.a"
+
 AND_KT="$ROOT/apps/android-shell/app/src/main/java/uniffi/clip_ffi"
 mkdir -p "$AND_KT"
 cp "$OUT/uniffi/clip_ffi/clip_ffi.kt" "$AND_KT/clip_ffi.kt"
 
-echo "UniFFI bindings updated under apps/macos-shell/Generated and apps/android-shell."
+echo "UniFFI bindings updated under apps/macos-shell, apps/apple-shell, and apps/android-shell."

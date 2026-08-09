@@ -11,8 +11,9 @@ crates/clip-engine/   # Clip Engine library (Rust)
 crates/clip-ffi/      # Blocking Session facade + UniFFI (Swift/Kotlin)
 crates/relay/         # Encrypted relay (WebSocket, ciphertext only)
 apps/macos-shell/     # macOS menu bar Shell (SwiftPM + UniFFI)
+apps/apple-shell/     # iOS / iPadOS / macOS windowed / visionOS Shell (SwiftUI + UniFFI)
 apps/android-shell/   # Android Shell (Gradle / Kotlin + UniFFI)
-scripts/              # UniFFI generate + Android JNI helpers
+scripts/              # UniFFI generate + platform FFI helpers
 ```
 
 ## Prerequisites
@@ -106,6 +107,18 @@ swift run MacosShell   # menu bar extra; accessory (no Dock)
 ```
 
 `Info.plist` sets `LSUIElement=true` for bundled runs; `swift run` also calls `NSApp.setActivationPolicy(.accessory)`.
+
+### Apple Shell (iOS / iPadOS / macOS windowed / visionOS)
+
+```bash
+./scripts/build-apple-ffi.sh          # ClipFfi.xcframework + macOS libclip_ffi.a
+cd apps/apple-shell
+xcodegen generate                     # SyncClip.xcodeproj
+open SyncClip.xcodeproj               # Run on Simulator / device / Mac / visionOS
+swift test                            # AppleShellCore unit tests (macOS)
+```
+
+See [`apps/apple-shell/README.md`](apps/apple-shell/README.md) and [ADR-0007](docs/adr/0007-apple-multiplatform-shell.md). The menu bar Shell remains the macOS path for Shell Lifetime with login-item resume.
 
 ### Android Shell
 

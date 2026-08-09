@@ -41,7 +41,7 @@ Device state where the Device stays in its Sync Group but neither publishes nor 
 _Avoid_: Offline, disconnected, logged out, disabled, quit
 
 **Elevated Clipboard Capture**:
-On Android, the extra OS permission the Shell needs to observe local clipboard changes while another app is focused. Without it a Device cannot stay Armed; macOS Shells do not require this.
+On Android, the extra OS permission the Shell needs to observe local clipboard changes while another app is focused. Without it a Device cannot stay Armed; macOS menu bar Shells do not require this. iOS / iPadOS / visionOS Shells use foreground UIPasteboard access instead (no Elevated Clipboard Capture equivalent).
 _Avoid_: Accessibility service (implementation), background clipboard hack, focus-only capture
 
 **Sync Idle**:
