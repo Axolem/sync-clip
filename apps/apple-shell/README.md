@@ -1,49 +1,47 @@
-# Apple Shell (iOS, iPadOS, macOS windowed, visionOS)
+# Apple Shell (iOS, iPadOS, macOS menu bar, visionOS)
 
-Multiplatform Sync Clip Shell built with SwiftUI + `AppleShellCore` (Clip Engine via UniFFI).
+Shared Sync Clip Shell package: `AppleShellCore` (Clip Engine via UniFFI) plus:
 
-The **menu bar** macOS Shell remains in [`../macos-shell`](../macos-shell) for Shell Lifetime with login-item resume and continuous pasteboard capture. This app is the settings/UI Shell for iPhone, iPad, Vision Pro, and an optional Mac window.
+- **macOS:** menu bar / login-item Shell (`SyncClipMac` → `SyncClip Shell.app`)
+- **iOS / iPadOS / visionOS:** SwiftUI settings UI (`SyncClip.xcodeproj`)
 
 ## Prerequisites
 
 - Xcode 15+
-- Rust toolchain + targets: `aarch64-apple-ios`, `aarch64-apple-ios-sim`, `aarch64-apple-darwin`
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
+- Rust toolchain
+- [XcodeGen](https://github.com/yonaskolb/XcodeGen) for the mobile app project (`brew install xcodegen`)
 
-## Build Clip FFI
+## macOS menu bar
 
 ```bash
 # from repo root
-./scripts/build-apple-ffi.sh
+./scripts/build-macos-shell.sh
+# → ~/Applications/SyncClip Shell.app
 ```
 
-Produces `lib/ClipFfi.xcframework` and `lib/libclip_ffi.a` (macOS SPM tests).
-
-## Generate Xcode project
+## iOS / visionOS
 
 ```bash
+./scripts/build-apple-ffi.sh          # ClipFfi.xcframework
 cd apps/apple-shell
 xcodegen generate
 open SyncClip.xcodeproj
 ```
 
-Select the **Sync Clip** scheme → iOS Simulator / device / visionOS / My Mac.
-
-## Tests (shared core)
+## Tests
 
 ```bash
-./scripts/build-macos-shell.sh   # ensures libclip_ffi.a exists, or:
-cp ../../target/release/libclip_ffi.a lib/
+cd apps/apple-shell
+# ensure lib/libclip_ffi.a exists (build-macos-shell or copy from target/)
 swift test
 ```
 
 ## Platform notes
 
-| Platform | Clipboard capture |
+| Platform | Role |
 |---|---|
-| iOS / iPadOS | Foreground (and brief active) UIPasteboard; no Elevated Clipboard Capture equivalent |
-| visionOS | UIPasteboard (same adapter) |
-| macOS (this app) | NSPasteboard while the windowed app is running |
-| macOS menu bar | [`../macos-shell`](../macos-shell) — preferred for Shell Lifetime / login item |
+| macOS menu bar | Shell Lifetime, login item, continuous pasteboard (`LSUIElement`) |
+| iOS / iPadOS | Foreground UIPasteboard while the app is active |
+| visionOS | UIPasteboard (same UIKit adapter); FFI slice when SDK present |
 
-watchOS and tvOS are out of scope (no useful clipboard sync UX).
+watchOS and tvOS are out of scope.

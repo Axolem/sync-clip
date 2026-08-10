@@ -54,7 +54,7 @@ public struct ShellRootView: View {
 
                 Section {
                     Text(
-                        "Clipboard sync needs Sync Clip in the foreground on iPhone and iPad. Use the macOS menu bar Shell when you need pasteboard capture with Shell Lifetime and login-item resume."
+                        "Clipboard sync needs Sync Clip in the foreground on iPhone and iPad. On Mac, use the menu bar Shell (SyncClipMac / SyncClip Shell.app) for pasteboard capture with Shell Lifetime and login-item resume."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)

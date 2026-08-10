@@ -1,3 +1,4 @@
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import AppKit
 import Foundation
 
@@ -5,7 +6,7 @@ import Foundation
 @MainActor
 public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
     private let armedStore: ArmedStateStoring
-    private let clipboard = ClipboardSyncController()
+    private let clipboard: ClipboardSyncController
     private let nicknameStore: LocalNicknameStoring
     private var statusPollTimer: Timer?
     private let store: LinkKeyStoring
@@ -13,11 +14,15 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
     private var syncIdleReason: String?
 
     public init(
-        store: LinkKeyStoring = KeychainLinkKeyStore(),
-        nicknameStore: LocalNicknameStoring = UserDefaultsLocalNicknameStore(),
-        armedStore: ArmedStateStoring = UserDefaultsArmedStateStore()
+        store: LinkKeyStoring = KeychainLinkKeyStore(service: "com.syncclip.macos-shell"),
+        nicknameStore: LocalNicknameStoring = UserDefaultsLocalNicknameStore(
+            key: "com.syncclip.macos-shell.localNickname"
+        ),
+        armedStore: ArmedStateStoring = UserDefaultsArmedStateStore(),
+        clipboard: SystemClipboard = AppKitSystemClipboard()
     ) {
         self.armedStore = armedStore
+        self.clipboard = ClipboardSyncController(clipboard: clipboard)
         self.nicknameStore = nicknameStore
         self.store = store
     }
@@ -465,3 +470,4 @@ public final class MenuBarShellApp: NSObject, NSApplicationDelegate {
         return field
     }
 }
+#endif

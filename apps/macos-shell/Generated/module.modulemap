@@ -1,4 +1,0 @@
-module clip_ffiFFI {
-    header "clip_ffiFFI.h"
-    export *
-}

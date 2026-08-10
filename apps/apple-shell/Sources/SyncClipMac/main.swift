@@ -1,8 +1,8 @@
 import AppKit
-import MacosShellCore
+import AppleShellCore
 
 @main
-enum MacosShellMain {
+enum SyncClipMacMain {
     static func main() {
         let app = NSApplication.shared
         let delegate = MenuBarShellApp()

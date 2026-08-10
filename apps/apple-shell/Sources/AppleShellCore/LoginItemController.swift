@@ -1,3 +1,4 @@
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
 import ServiceManagement
 
 /// Registers the macOS Shell for login auto-start when eligible (ADR-0006).
@@ -22,3 +23,4 @@ public enum LoginItemController {
         return false
     }
 }
+#endif

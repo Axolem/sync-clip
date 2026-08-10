@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build clip-ffi staticlib, force-relink the macOS Shell, optionally install the .app.
+# Build clip-ffi staticlib, force-relink the macOS menu bar Shell (SyncClipMac in apple-shell).
 # SwiftPM does not always invalidate link inputs when only libclip_ffi.a changes —
 # this script always cleans .build so the new archive is linked.
 set -euo pipefail
@@ -13,7 +13,6 @@ INSTALL="${INSTALL:-1}"
 OPEN_APP="${OPEN_APP:-1}"
 APP_DIR="${APP_DIR:-$HOME/Applications/SyncClip Shell.app}"
 VERSION="$(tr -d '[:space:]' <"$ROOT/VERSION")"
-# Build number: digits only from VERSION (0.1.0 -> 1000 via major*1e6+…) or override.
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 if [[ -z "$BUILD_NUMBER" ]]; then
   IFS='.' read -r major minor patch <<<"${VERSION%%-*}"
@@ -23,6 +22,7 @@ if [[ -z "$BUILD_NUMBER" ]]; then
   BUILD_NUMBER="$((major * 1000000 + minor * 1000 + patch))"
 fi
 ICON_ICNS="${ICON_ICNS:-$ROOT/assets/macos/AppIcon.icns}"
+APPLE="$ROOT/apps/apple-shell"
 
 cd "$ROOT"
 
@@ -35,19 +35,19 @@ else
   LIB="$ROOT/target/debug/libclip_ffi.a"
 fi
 
-mkdir -p "$ROOT/apps/macos-shell/lib"
-cp "$LIB" "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
-touch "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
+mkdir -p "$APPLE/lib"
+cp "$LIB" "$APPLE/lib/libclip_ffi.a"
+touch "$APPLE/lib/libclip_ffi.a"
 
-cd "$ROOT/apps/macos-shell"
+cd "$APPLE"
 echo "Cleaning SwiftPM build (forced relink of libclip_ffi.a)…"
 rm -rf .build
 if [[ "$PROFILE" == "release" ]]; then
-  swift build -c release
-  BIN="$(swift build -c release --show-bin-path)/MacosShell"
+  swift build -c release --product SyncClipMac
+  BIN="$(swift build -c release --show-bin-path)/SyncClipMac"
 else
-  swift build
-  BIN="$(swift build --show-bin-path)/MacosShell"
+  swift build --product SyncClipMac
+  BIN="$(swift build --show-bin-path)/SyncClipMac"
 fi
 
 ls -lh "$BIN"
@@ -59,6 +59,7 @@ fi
 
 echo "Installing $APP_DIR ..."
 pkill -f "SyncClip Shell" 2>/dev/null || true
+pkill -f "SyncClipMac" 2>/dev/null || true
 pkill -f "MacosShell" 2>/dev/null || true
 sleep 0.3
 

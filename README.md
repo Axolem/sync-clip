@@ -10,8 +10,7 @@ This monorepo holds the shared **Clip Engine** (Rust), the **clip-ffi** Session 
 crates/clip-engine/   # Clip Engine library (Rust)
 crates/clip-ffi/      # Blocking Session facade + UniFFI (Swift/Kotlin)
 crates/relay/         # Encrypted relay (WebSocket, ciphertext only)
-apps/macos-shell/     # macOS menu bar Shell (SwiftPM + UniFFI)
-apps/apple-shell/     # iOS / iPadOS / macOS windowed / visionOS Shell (SwiftUI + UniFFI)
+apps/apple-shell/     # Apple Shells: macOS menu bar + iOS/iPadOS/visionOS (Swift + UniFFI)
 apps/windows-shell/   # Windows tray Shell (Rust + clip-ffi)
 apps/android-shell/   # Android Shell (Gradle / Kotlin + UniFFI)
 scripts/              # UniFFI generate + platform FFI helpers
@@ -95,31 +94,26 @@ relay.example.com {
 }
 ```
 
-### macOS Shell
+### macOS Shell (menu bar)
 
 ```bash
-source "$HOME/.cargo/env"
-cargo build -p clip-ffi
-mkdir -p apps/macos-shell/lib
-cp target/debug/libclip_ffi.a apps/macos-shell/lib/libclip_ffi.a
-cd apps/macos-shell
-swift build
-swift run MacosShell   # menu bar extra; accessory (no Dock)
+./scripts/build-macos-shell.sh   # builds SyncClipMac from apps/apple-shell
+# → ~/Applications/SyncClip Shell.app + ~/.local/bin/sync-clip-shell
 ```
 
-`Info.plist` sets `LSUIElement=true` for bundled runs; `swift run` also calls `NSApp.setActivationPolicy(.accessory)`.
+`LSUIElement=true` — accessory menu bar app with login-item resume (ADR-0006).
 
-### Apple Shell (iOS / iPadOS / macOS windowed / visionOS)
+### Apple Shell (iOS / iPadOS / visionOS)
 
 ```bash
 ./scripts/build-apple-ffi.sh          # ClipFfi.xcframework + macOS libclip_ffi.a
 cd apps/apple-shell
 xcodegen generate                     # SyncClip.xcodeproj
-open SyncClip.xcodeproj               # Run on Simulator / device / Mac / visionOS
+open SyncClip.xcodeproj               # Run on Simulator / device / visionOS
 swift test                            # AppleShellCore unit tests (macOS)
 ```
 
-See [`apps/apple-shell/README.md`](apps/apple-shell/README.md) and [ADR-0007](docs/adr/0007-apple-multiplatform-shell.md). The menu bar Shell remains the macOS path for Shell Lifetime with login-item resume.
+See [`apps/apple-shell/README.md`](apps/apple-shell/README.md) and [ADR-0007](docs/adr/0007-apple-multiplatform-shell.md).
 
 ### Windows Shell
 
@@ -168,7 +162,7 @@ Day-to-day local install (no DMG):
 ## Demo: macOS + Android on one Sync Group
 
 1. Relay: use the hosted default (`wss://clip.dotenv.co.za/v0/ws`), or start a local relay and set Relay URL in each Shell.
-2. macOS: `swift run` from `apps/macos-shell` (after copying `libclip_ffi.a` as above).
+2. macOS: `./scripts/build-macos-shell.sh` (or open the installed Sync Clip Shell.app).
    - Menu → **Generate Link Key** (or Enter Link Key). Leave **Armed** on.
    - Optional: **Relay URL…**, **Rotate Link Key…**, **Local Nickname…**
 3. Android: install debug APK with JNI libs built.

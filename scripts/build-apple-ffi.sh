@@ -81,8 +81,6 @@ fi
 
 # SPM / menu-bar macOS path still expects libclip_ffi.a next to Package.swift.
 cp "$MAC_UNIVERSAL" "$OUT_DIR/libclip_ffi.a"
-mkdir -p "$ROOT/apps/macos-shell/lib"
-cp "$MAC_UNIVERSAL" "$ROOT/apps/macos-shell/lib/libclip_ffi.a"
 
 HDR_DIR="$OUT_DIR/headers"
 rm -rf "$HDR_DIR"

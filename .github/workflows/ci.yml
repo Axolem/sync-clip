@@ -23,27 +23,8 @@ jobs:
       - name: Test Windows Shell core
         run: cargo test -p windows-shell
 
-  macos-shell:
-    name: macOS Shell
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Build clip-ffi staticlib
-        run: |
-          source "$HOME/.cargo/env"
-          cargo build -p clip-ffi
-          mkdir -p apps/macos-shell/lib
-          cp target/debug/libclip_ffi.a apps/macos-shell/lib/libclip_ffi.a
-      - name: Build macOS Shell
-        working-directory: apps/macos-shell
-        run: swift build
-      - name: Test macOS Shell
-        working-directory: apps/macos-shell
-        run: swift test
-
   apple-shell:
-    name: Apple Shell (core)
+    name: Apple Shell
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +38,9 @@ jobs:
       - name: Test AppleShellCore
         working-directory: apps/apple-shell
         run: swift test
+      - name: Build macOS menu bar (SyncClipMac)
+        working-directory: apps/apple-shell
+        run: swift build --product SyncClipMac
 
   windows-shell:
     name: Windows Shell

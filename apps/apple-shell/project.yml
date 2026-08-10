@@ -3,13 +3,12 @@ options:
   bundleIdPrefix: com.syncclip
   deploymentTarget:
     iOS: "16.0"
-    macOS: "13.0"
     visionOS: "1.0"
   createIntermediateGroups: true
 settings:
   base:
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1000"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "2000"
     SWIFT_VERSION: "5.9"
 packages:
   AppleShell:
@@ -17,7 +16,7 @@ packages:
 targets:
   SyncClip:
     type: application
-    supportedDestinations: [iOS, macOS, visionOS]
+    supportedDestinations: [iOS, visionOS]
     sources:
       - path: App
     dependencies:

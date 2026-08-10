@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "AppleShellCore", targets: ["AppleShellCore"]),
+        .executable(name: "SyncClipMac", targets: ["SyncClipMac"]),
     ],
     targets: [
         .systemLibrary(
@@ -23,11 +24,16 @@ let package = Package(
             linkerSettings: [
                 .linkedLibrary("resolv"),
                 .linkedFramework("Security"),
-                // clip_ffi: macOS SPM tests link lib/libclip_ffi.a; Xcode app links ClipFfi.xcframework.
                 .linkedLibrary("clip_ffi", .when(platforms: [.macOS])),
                 .unsafeFlags(["-L", "lib"], .when(platforms: [.macOS])),
                 .linkedFramework("AppKit", .when(platforms: [.macOS])),
+                .linkedFramework("ServiceManagement", .when(platforms: [.macOS])),
             ]
+        ),
+        .executableTarget(
+            name: "SyncClipMac",
+            dependencies: ["AppleShellCore"],
+            path: "Sources/SyncClipMac"
         ),
         .testTarget(
             name: "AppleShellCoreTests",
