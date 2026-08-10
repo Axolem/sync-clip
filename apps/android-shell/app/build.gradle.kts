@@ -7,7 +7,8 @@ fun envOrNull(name: String): String? =
     System.getenv(name)?.takeIf { it.isNotBlank() }
 
 fun readVersionName(): String {
-    val versionFile = rootProject.projectDir.parentFile.resolve("VERSION")
+    // Gradle rootProject is apps/android-shell; VERSION lives at the monorepo root.
+    val versionFile = rootProject.projectDir.resolve("../../VERSION").normalize()
     return if (versionFile.isFile) {
         versionFile.readText().trim().ifBlank { "0.1.0" }
     } else {
